@@ -6,3 +6,4 @@ pypng
 gunicorn
 werkzeug
 supabase
+pytz

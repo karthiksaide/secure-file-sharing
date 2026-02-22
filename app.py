@@ -4,10 +4,10 @@ from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 from supabase import create_client
-import sqlite3
 import os
 import tempfile
 import datetime
+import pytz
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
@@ -16,34 +16,13 @@ app.secret_key = "supersecretkey"
 # Supabase Configuration
 # -----------------------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL") or "https://iqwxcxcexqqhrzznhzgg.supabase.co"
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlxd3hjeGNleHFxaHJ6em5oemdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3NzU2NjQsImV4cCI6MjA4NzM1MTY2NH0.61gK43valJtnsb8LVZLGdVDi2M6_-8Z2_o35Dan0mXk"
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or "YOUR_ANON_KEY_HERE"
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 BUCKET_NAME = "encrypted-files"
 
 # -----------------------------
-# Local SQLite (Only for Users)
-# -----------------------------
-def init_db():
-    conn = sqlite3.connect("users.db")
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    username TEXT UNIQUE,
-                    password TEXT
-                )''')
-    conn.commit()
-    conn.close()
-
-init_db()
-
-def get_db():
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
-    return conn
-
-# -----------------------------
-# Routes
+# Home
 # -----------------------------
 @app.route('/')
 def home():
@@ -56,7 +35,7 @@ def home():
     return render_template("index.html", files=filenames, user=session['user'])
 
 # -----------------------------
-# Register
+# Register (Supabase Users Table)
 # -----------------------------
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -64,45 +43,52 @@ def register():
         username = request.form['username']
         password = generate_password_hash(request.form['password'])
 
-        conn = get_db()
-        try:
-            conn.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
-            conn.commit()
-        except:
+        # Check if user exists
+        existing = supabase.table("users").select("*").eq("username", username).execute()
+
+        if existing.data:
             return "User already exists"
+
+        supabase.table("users").insert({
+            "username": username,
+            "password": password
+        }).execute()
 
         return redirect(url_for('login'))
 
     return render_template("register.html")
 
 # -----------------------------
-# Login + Cloud Logging
+# Login + Logging (Supabase)
 # -----------------------------
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+
+        ist = pytz.timezone("Asia/Kolkata")
+        timestamp = datetime.datetime.now(ist).strftime("%Y-%m-%d %H:%M:%S")
         ip = request.remote_addr
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        conn = get_db()
-        user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        result = supabase.table("users").select("*").eq("username", username).execute()
 
-        if user and check_password_hash(user['password'], password):
-            session['user'] = username
+        if result.data:
+            user = result.data[0]
 
-            # Log SUCCESS in Supabase
-            supabase.table("login_logs").insert({
-                "username": username,
-                "status": "SUCCESS",
-                "ip_address": ip,
-                "timestamp": timestamp
-            }).execute()
+            if check_password_hash(user["password"], password):
+                session['user'] = username
 
-            return redirect(url_for('home'))
+                supabase.table("login_logs").insert({
+                    "username": username,
+                    "status": "SUCCESS",
+                    "ip_address": ip,
+                    "timestamp": timestamp
+                }).execute()
 
-        # Log FAILURE in Supabase
+                return redirect(url_for('home'))
+
+        # Failed login
         supabase.table("login_logs").insert({
             "username": username,
             "status": "FAILED",
@@ -123,7 +109,7 @@ def logout():
     return redirect(url_for('login'))
 
 # -----------------------------
-# Upload (Hybrid Encryption + Supabase)
+# Upload (Hybrid Encryption + Supabase Storage)
 # -----------------------------
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -150,14 +136,16 @@ def upload():
 
         # Upload encrypted file
         supabase.storage.from_(BUCKET_NAME).upload(
-            filename,
-            encrypted_data
+            path=filename,
+            file=encrypted_data,
+            file_options={"upsert": "true"}
         )
 
         # Upload encrypted AES key
         supabase.storage.from_(BUCKET_NAME).upload(
-            filename + ".key",
-            encrypted_aes_key
+            path=filename + ".key",
+            file=encrypted_aes_key,
+            file_options={"upsert": "true"}
         )
 
     return redirect(url_for('home'))
@@ -173,7 +161,6 @@ def download(filename):
     encrypted_data = supabase.storage.from_(BUCKET_NAME).download(filename)
     encrypted_aes_key = supabase.storage.from_(BUCKET_NAME).download(filename + ".key")
 
-    # Decrypt AES key
     with open("private.pem", "rb") as f:
         private_key = RSA.import_key(f.read())
 
@@ -183,7 +170,6 @@ def download(filename):
     cipher_aes = Fernet(aes_key)
     decrypted_data = cipher_aes.decrypt(encrypted_data)
 
-    # Send temp file
     temp_file = tempfile.NamedTemporaryFile(delete=False)
     temp_file.write(decrypted_data)
     temp_file.close()
@@ -191,7 +177,7 @@ def download(filename):
     return send_file(temp_file.name, as_attachment=True, download_name=filename)
 
 # -----------------------------
-# Run
+# Run (Render Compatible)
 # -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
