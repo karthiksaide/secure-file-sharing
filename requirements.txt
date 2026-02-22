@@ -1,0 +1,7 @@
+flask
+cryptography
+pycryptodome
+pyqrcode
+pypng
+gunicorn
+werkzeug

@@ -1,0 +1,20 @@
+<h2>Welcome {{ user }}</h2>
+<a href="/logout">Logout</a>
+
+<h3>Upload File</h3>
+<form action="/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="file">
+    <button type="submit">Upload</button>
+</form>
+
+<hr>
+
+<h3>Your Files</h3>
+
+{% for file in files %}
+    <p>
+        {{ file }} 
+        <a href="/download/{{ file }}">Download</a><br>
+        <img src="/static_qr/{{ file }}" width="150">
+    </p>
+{% endfor %}
