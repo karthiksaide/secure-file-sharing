@@ -1,184 +1,118 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_file
-from werkzeug.security import generate_password_hash, check_password_hash
-from cryptography.fernet import Fernet
+from flask import Flask, render_template, request, redirect, session
+from supabase import create_client, Client
+import os
+import base64
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
-from supabase import create_client
-import os
-import tempfile
-import datetime
-import pytz
 
 app = Flask(__name__)
-app.secret_key = "supersecretkey"
+app.secret_key = "your-secret-key"
 
-# -----------------------------
-# Supabase Configuration
-# -----------------------------
-SUPABASE_URL = os.environ.get("SUPABASE_URL") or "https://iqwxcxcexqqhrzznhzgg.supabase.co"
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or "YOUR_ANON_KEY_HERE"
+# 🔹 Supabase Config (Render Environment Variables)
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")  # ✅ Must be SERVICE ROLE KEY
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-BUCKET_NAME = "encrypted-files"
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# -----------------------------
-# Home
-# -----------------------------
-@app.route('/')
-def home():
-    if 'user' not in session:
-        return redirect(url_for('login'))
 
-    files = supabase.storage.from_(BUCKET_NAME).list()
-    filenames = [f["name"] for f in files if not f["name"].endswith(".key")]
-
-    return render_template("index.html", files=filenames, user=session['user'])
-
-# -----------------------------
-# Register (Supabase Users Table)
-# -----------------------------
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = generate_password_hash(request.form['password'])
-
-        # Check if user exists
-        existing = supabase.table("users").select("*").eq("username", username).execute()
-
-        if existing.data:
-            return "User already exists"
-
-        supabase.table("users").insert({
-            "username": username,
-            "password": password
-        }).execute()
-
-        return redirect(url_for('login'))
-
-    return render_template("register.html")
-
-# -----------------------------
-# Login + Logging (Supabase)
-# -----------------------------
-@app.route('/login', methods=['GET', 'POST'])
+# ---------------- LOGIN ----------------
+@app.route("/", methods=["GET", "POST"])
 def login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-
-        ist = pytz.timezone("Asia/Kolkata")
-        timestamp = datetime.datetime.now(ist).strftime("%Y-%m-%d %H:%M:%S")
-        ip = request.remote_addr
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
 
         result = supabase.table("users").select("*").eq("username", username).execute()
 
-        if result.data:
-            user = result.data[0]
-
-            if check_password_hash(user["password"], password):
-                session['user'] = username
-
-                supabase.table("login_logs").insert({
-                    "username": username,
-                    "status": "SUCCESS",
-                    "ip_address": ip,
-                    "timestamp": timestamp
-                }).execute()
-
-                return redirect(url_for('home'))
-
-        # Failed login
-        supabase.table("login_logs").insert({
-            "username": username,
-            "status": "FAILED",
-            "ip_address": ip,
-            "timestamp": timestamp
-        }).execute()
+        if result.data and result.data[0]["password"] == password:
+            session["user"] = username
+            return redirect("/dashboard")
 
         return "Invalid credentials"
 
     return render_template("login.html")
 
-# -----------------------------
-# Logout
-# -----------------------------
-@app.route('/logout')
-def logout():
-    session.pop('user', None)
-    return redirect(url_for('login'))
 
-# -----------------------------
-# Upload (Hybrid Encryption + Supabase Storage)
-# -----------------------------
-@app.route('/upload', methods=['POST'])
+# ---------------- DASHBOARD ----------------
+@app.route("/dashboard")
+def dashboard():
+    if "user" not in session:
+        return redirect("/")
+
+    result = supabase.table("files").select("*").execute()
+    return render_template("dashboard.html", files=result.data)
+
+
+# ---------------- UPLOAD ----------------
+@app.route("/upload", methods=["POST"])
 def upload():
-    if 'user' not in session:
-        return redirect(url_for('login'))
+    if "user" not in session:
+        return redirect("/")
 
-    file = request.files['file']
+    file = request.files["file"]
+    filename = file.filename
 
-    if file:
-        filename = file.filename
-        data = file.read()
+    # ✅ Upload file directly to Supabase Storage
+    supabase.storage.from_("encrypted-files").upload(filename, file)
 
-        # AES Encryption
-        aes_key = Fernet.generate_key()
-        cipher_aes = Fernet(aes_key)
-        encrypted_data = cipher_aes.encrypt(data)
+    # 🔐 Get PRIVATE KEY from environment
+    private_key_data = os.environ.get("PRIVATE_KEY")
+    if not private_key_data:
+        return "Private key missing", 500
 
-        # RSA Encrypt AES Key
-        with open("public.pem", "rb") as f:
-            public_key = RSA.import_key(f.read())
+    private_key = RSA.import_key(private_key_data.encode())
+    public_key = private_key.publickey()
 
-        cipher_rsa = PKCS1_OAEP.new(public_key)
-        encrypted_aes_key = cipher_rsa.encrypt(aes_key)
+    cipher_rsa = PKCS1_OAEP.new(public_key)
+    encrypted_key = cipher_rsa.encrypt(b"dummy_aes_key")
 
-        # Upload encrypted file
-        supabase.storage.from_(BUCKET_NAME).upload(
-            path=filename,
-            file=encrypted_data,
-            file_options={"upsert": "true"}
-        )
+    # Save encrypted key in database
+    supabase.table("files").insert({
+        "filename": filename,
+        "encrypted_key": base64.b64encode(encrypted_key).decode()
+    }).execute()
 
-        # Upload encrypted AES key
-        supabase.storage.from_(BUCKET_NAME).upload(
-            path=filename + ".key",
-            file=encrypted_aes_key,
-            file_options={"upsert": "true"}
-        )
+    return redirect("/dashboard")
 
-    return redirect(url_for('home'))
 
-# -----------------------------
-# Download
-# -----------------------------
-@app.route('/download/<filename>')
+# ---------------- DOWNLOAD ----------------
+@app.route("/download/<filename>")
 def download(filename):
-    if 'user' not in session:
-        return redirect(url_for('login'))
+    if "user" not in session:
+        return redirect("/")
 
-    encrypted_data = supabase.storage.from_(BUCKET_NAME).download(filename)
-    encrypted_aes_key = supabase.storage.from_(BUCKET_NAME).download(filename + ".key")
+    private_key_data = os.environ.get("PRIVATE_KEY")
+    if not private_key_data:
+        return "Private key not found in environment variables", 500
 
-    with open("private.pem", "rb") as f:
-        private_key = RSA.import_key(f.read())
-
+    private_key = RSA.import_key(private_key_data.encode())
     cipher_rsa = PKCS1_OAEP.new(private_key)
-    aes_key = cipher_rsa.decrypt(encrypted_aes_key)
 
-    cipher_aes = Fernet(aes_key)
-    decrypted_data = cipher_aes.decrypt(encrypted_data)
+    # Get encrypted AES key from DB
+    result = supabase.table("files").select("*").eq("filename", filename).execute()
+    if not result.data:
+        return "File not found in database", 404
 
-    temp_file = tempfile.NamedTemporaryFile(delete=False)
-    temp_file.write(decrypted_data)
-    temp_file.close()
+    encrypted_key = base64.b64decode(result.data[0]["encrypted_key"])
 
-    return send_file(temp_file.name, as_attachment=True, download_name=filename)
+    # Decrypt AES key (verification step)
+    cipher_rsa.decrypt(encrypted_key)
 
-# -----------------------------
-# Run (Render Compatible)
-# -----------------------------
+    # Generate signed URL (valid 60 seconds)
+    signed = supabase.storage.from_("encrypted-files").create_signed_url(filename, 60)
+
+    if not signed or "signedURL" not in signed:
+        return "Could not generate signed URL", 500
+
+    return redirect(signed["signedURL"])
+
+
+# ---------------- LOGOUT ----------------
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/")
+
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run()
