@@ -1,6 +1,8 @@
 <h2>Welcome {{ user }}</h2>
 <a href="/logout">Logout</a>
 
+<hr>
+
 <h3>Upload File</h3>
 <form action="/upload" method="post" enctype="multipart/form-data">
     <input type="file" name="file" required>
@@ -10,33 +12,64 @@
 <hr>
 
 <h3>Your Files</h3>
-{% for file in own_files %}
-    <p>
-        <b>{{ file.filename }}</b>
-        <a href="/download/{{ file.filename }}">Download</a>
 
-        <form action="/share/{{ file.filename }}" method="post">
-            <div>
-                {% for u in all_users %}
-                    <label>
-                        <input type="checkbox" name="users" value="{{ u }}">
-                        {{ u }}
-                    </label>
-                {% endfor %}
-            </div>
-            <button type="submit">Share Selected</button>
-        </form>
-    </p>
-{% endfor %}
+{% if own_files %}
+    {% for file in own_files %}
+        <div style="margin-bottom:20px; padding:10px; border:1px solid #ccc;">
+            
+            <b>{{ file.filename }}</b><br><br>
+
+            <!-- Download -->
+            <a href="/download/{{ file.filename }}">
+                <button type="button">Download</button>
+            </a>
+
+            <!-- Delete -->
+            <form action="/delete/{{ file.filename }}" method="post" style="display:inline;">
+                <button type="submit">Delete</button>
+            </form>
+
+            <br><br>
+
+            <!-- Share Section -->
+            <form action="/share/{{ file.filename }}" method="post">
+                <div>
+                    <b>Share with:</b><br>
+                    {% for u in all_users %}
+                        <label style="margin-right:10px;">
+                            <input type="checkbox" name="users" value="{{ u }}">
+                            {{ u }}
+                        </label>
+                    {% endfor %}
+                </div>
+                <br>
+                <button type="submit">Share Selected</button>
+            </form>
+
+        </div>
+    {% endfor %}
+{% else %}
+    <p>No files uploaded yet.</p>
+{% endif %}
 
 <hr>
 
 <h3>Files Shared With You</h3>
-{% for file in shared_files %}
-    <p>
-        <b>{{ file.filename }}</b><br>
-        Shared by: <b>{{ file.owner }}</b><br>
-        Shared at: {{ file.shared_at }}<br>
-        <a href="/download/{{ file.filename }}">Download</a>
-    </p>
-{% endfor %}
+
+{% if shared_files %}
+    {% for file in shared_files %}
+        <div style="margin-bottom:20px; padding:10px; border:1px solid #ccc;">
+            
+            <b>{{ file.filename }}</b><br>
+            Shared by: <b>{{ file.owner }}</b><br>
+            Shared at: {{ file.shared_at }}<br><br>
+
+            <a href="/download/{{ file.filename }}">
+                <button type="button">Download</button>
+            </a>
+
+        </div>
+    {% endfor %}
+{% else %}
+    <p>No files shared with you.</p>
+{% endif %}

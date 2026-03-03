@@ -1,7 +1,16 @@
 <h2>Register</h2>
-<form method="post">
-    <input type="text" name="username" placeholder="Username"><br>
-    <input type="password" name="password" placeholder="Password"><br>
+<form method="POST">
+    <input name="username" placeholder="Username" required><br><br>
+
+    <input type="password" id="password" name="password" required>
+    <button type="button" onclick="togglePassword()">Show</button><br><br>
+
     <button type="submit">Register</button>
 </form>
-<a href="/login">Login</a>
+
+<script>
+function togglePassword() {
+    var x = document.getElementById("password");
+    x.type = x.type === "password" ? "text" : "password";
+}
+</script>

@@ -25,7 +25,7 @@ def register():
 
         existing = supabase.table("users").select("*").eq("username", username).execute()
         if existing.data:
-            return "User already exists"
+            return "Username already exists"
 
         hashed = generate_password_hash(password)
 
@@ -65,21 +65,14 @@ def dashboard():
 
     user = session["user"]
 
-    # Own files
-    own_files = supabase.table("files") \
-        .select("*") \
-        .eq("username", user) \
-        .execute()
+    own_files = supabase.table("files").select("*").eq("username", user).execute()
 
-    # Shared permissions (who shared to me)
     shared_permissions = supabase.table("file_permissions") \
         .select("*") \
         .eq("shared_with", user) \
-        .order("created_at", desc=True) \
         .execute()
 
     shared_files = []
-
     if shared_permissions.data:
         for permission in shared_permissions.data:
             shared_files.append({
@@ -88,7 +81,6 @@ def dashboard():
                 "shared_at": permission["created_at"]
             })
 
-    # All users except current user
     users = supabase.table("users").select("username").execute()
     all_users = [u["username"] for u in users.data if u["username"] != user]
 
@@ -110,8 +102,20 @@ def upload():
     file = request.files["file"]
     filename = file.filename
     file_bytes = file.read()
+    file_size = len(file_bytes)
 
-    # Store file under user folder
+    # Prevent duplicate filename + same size
+    existing = supabase.table("files") \
+        .select("*") \
+        .eq("filename", filename) \
+        .eq("username", session["user"]) \
+        .execute()
+
+    if existing.data:
+        for f in existing.data:
+            if f.get("file_size") == file_size:
+                return "Same file already uploaded"
+
     supabase.storage.from_("encrypted-files").upload(
         f"{session['user']}/{filename}",
         file_bytes,
@@ -125,6 +129,7 @@ def upload():
 
     supabase.table("files").insert({
         "filename": filename,
+        "file_size": file_size,
         "encrypted_key": base64.b64encode(encrypted_key).decode(),
         "username": session["user"]
     }).execute()
@@ -132,55 +137,31 @@ def upload():
     return redirect("/dashboard")
 
 
-# ---------------- SHARE ----------------
-@app.route("/share/<filename>", methods=["POST"])
-def share(filename):
-    if "user" not in session:
-        return redirect("/")
-
-    selected_users = request.form.getlist("users")
-
-    for u in selected_users:
-        supabase.table("file_permissions").insert({
-            "filename": filename,
-            "owner": session["user"],
-            "shared_with": u
-        }).execute()
-
-    return redirect("/dashboard")
-
-
-# ---------------- DOWNLOAD ----------------
-@app.route("/download/<filename>")
-def download(filename):
+# ---------------- DELETE ----------------
+@app.route("/delete/<filename>", methods=["POST"])
+def delete(filename):
     if "user" not in session:
         return redirect("/")
 
     user = session["user"]
 
-    # Check ownership
     own = supabase.table("files") \
         .select("*") \
         .eq("filename", filename) \
         .eq("username", user) \
         .execute()
 
-    # Check shared permission
-    shared = supabase.table("file_permissions") \
-        .select("*") \
-        .eq("filename", filename) \
-        .eq("shared_with", user) \
-        .execute()
-
-    if not own.data and not shared.data:
+    if not own.data:
         return "Unauthorized", 403
 
-    owner_folder = user if own.data else shared.data[0]["owner"]
+    # Remove from storage
+    supabase.storage.from_("encrypted-files").remove([f"{user}/{filename}"])
 
-    signed = supabase.storage.from_("encrypted-files") \
-        .create_signed_url(f"{owner_folder}/{filename}", 60)
+    # Remove from database
+    supabase.table("files").delete().eq("filename", filename).eq("username", user).execute()
+    supabase.table("file_permissions").delete().eq("filename", filename).eq("owner", user).execute()
 
-    return redirect(signed["signedURL"])
+    return redirect("/dashboard")
 
 
 # ---------------- LOGOUT ----------------
