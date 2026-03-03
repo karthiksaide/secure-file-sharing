@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, session
-from supabase import create_client, Client
+from supabase import create_client
 import os
 import base64
 from Crypto.PublicKey import RSA
@@ -13,10 +13,9 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 PRIVATE_KEY_DATA = os.environ.get("PRIVATE_KEY")
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
-# ---------------- REGISTER ----------------
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
@@ -28,7 +27,6 @@ def register():
             return "Username already exists"
 
         hashed = generate_password_hash(password)
-
         supabase.table("users").insert({
             "username": username,
             "password": hashed
@@ -39,7 +37,6 @@ def register():
     return render_template("register.html")
 
 
-# ---------------- LOGIN ----------------
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -57,7 +54,6 @@ def login():
     return render_template("login.html")
 
 
-# ---------------- DASHBOARD ----------------
 @app.route("/dashboard")
 def dashboard():
     if "user" not in session:
@@ -72,14 +68,7 @@ def dashboard():
         .eq("shared_with", user) \
         .execute()
 
-    shared_files = []
-    if shared_permissions.data:
-        for permission in shared_permissions.data:
-            shared_files.append({
-                "filename": permission["filename"],
-                "owner": permission["owner"],
-                "shared_at": permission["created_at"]
-            })
+    shared_files = shared_permissions.data if shared_permissions.data else []
 
     users = supabase.table("users").select("username").execute()
     all_users = [u["username"] for u in users.data if u["username"] != user]
@@ -93,7 +82,6 @@ def dashboard():
     )
 
 
-# ---------------- UPLOAD ----------------
 @app.route("/upload", methods=["POST"])
 def upload():
     if "user" not in session:
@@ -104,7 +92,6 @@ def upload():
     file_bytes = file.read()
     file_size = len(file_bytes)
 
-    # Prevent duplicate filename + same size
     existing = supabase.table("files") \
         .select("*") \
         .eq("filename", filename) \
@@ -112,9 +99,7 @@ def upload():
         .execute()
 
     if existing.data:
-        for f in existing.data:
-            if f.get("file_size") == file_size:
-                return "Same file already uploaded"
+        return "File already exists"
 
     supabase.storage.from_("encrypted-files").upload(
         f"{session['user']}/{filename}",
@@ -122,22 +107,32 @@ def upload():
         {"content-type": "application/octet-stream"}
     )
 
-    private_key = RSA.import_key(PRIVATE_KEY_DATA.encode())
-    public_key = private_key.publickey()
-    cipher_rsa = PKCS1_OAEP.new(public_key)
-    encrypted_key = cipher_rsa.encrypt(b"dummy_aes_key")
-
     supabase.table("files").insert({
         "filename": filename,
         "file_size": file_size,
-        "encrypted_key": base64.b64encode(encrypted_key).decode(),
         "username": session["user"]
     }).execute()
 
     return redirect("/dashboard")
 
 
-# ---------------- DELETE ----------------
+@app.route("/share/<filename>", methods=["POST"])
+def share(filename):
+    if "user" not in session:
+        return redirect("/")
+
+    selected_users = request.form.getlist("users")
+
+    for u in selected_users:
+        supabase.table("file_permissions").insert({
+            "filename": filename,
+            "owner": session["user"],
+            "shared_with": u
+        }).execute()
+
+    return redirect("/dashboard")
+
+
 @app.route("/delete/<filename>", methods=["POST"])
 def delete(filename):
     if "user" not in session:
@@ -145,26 +140,13 @@ def delete(filename):
 
     user = session["user"]
 
-    own = supabase.table("files") \
-        .select("*") \
-        .eq("filename", filename) \
-        .eq("username", user) \
-        .execute()
-
-    if not own.data:
-        return "Unauthorized", 403
-
-    # Remove from storage
     supabase.storage.from_("encrypted-files").remove([f"{user}/{filename}"])
-
-    # Remove from database
     supabase.table("files").delete().eq("filename", filename).eq("username", user).execute()
     supabase.table("file_permissions").delete().eq("filename", filename).eq("owner", user).execute()
 
     return redirect("/dashboard")
 
 
-# ---------------- LOGOUT ----------------
 @app.route("/logout")
 def logout():
     session.clear()
