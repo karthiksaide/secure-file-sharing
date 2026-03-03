@@ -90,8 +90,15 @@ def upload():
     file = request.files["file"]
     filename = file.filename
 
-    # Upload file to Supabase Storage
-    supabase.storage.from_("encrypted-files").upload(filename, file)
+    # Read file as bytes
+    file_bytes = file.read()
+
+    # Upload bytes to Supabase Storage
+    supabase.storage.from_("encrypted-files").upload(
+        filename,
+        file_bytes,
+        {"content-type": "application/octet-stream"}
+    )
 
     if not PRIVATE_KEY_DATA:
         return "Private key not configured", 500
