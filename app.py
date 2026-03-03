@@ -106,7 +106,7 @@ def upload():
     file_bytes = file.read()
     file_size = len(file_bytes)
 
-    # Prevent duplicate (same name + same size)
+    # Prevent duplicate filename + same size
     existing = supabase.table("files") \
         .select("*") \
         .eq("filename", filename) \
@@ -118,13 +118,17 @@ def upload():
             if f.get("file_size") == file_size:
                 return "Same file already uploaded"
 
-    # Upload to storage under user folder
+    # Upload to storage (allow overwrite)
     supabase.storage.from_("encrypted-files").upload(
         f"{session['user']}/{filename}",
         file_bytes,
-        {"content-type": "application/octet-stream"}
+        {
+            "content-type": "application/octet-stream",
+            "upsert": "true"
+        }
     )
 
+    # Save metadata
     supabase.table("files").insert({
         "filename": filename,
         "file_size": file_size,
@@ -170,7 +174,7 @@ def download(filename):
     if own.data:
         owner_folder = user
     else:
-        # Check if shared with user
+        # Check if file shared with user
         shared = supabase.table("file_permissions") \
             .select("*") \
             .eq("filename", filename) \
@@ -182,7 +186,6 @@ def download(filename):
 
         owner_folder = shared.data[0]["owner"]
 
-    # Generate signed URL from correct owner folder
     signed = supabase.storage.from_("encrypted-files") \
         .create_signed_url(f"{owner_folder}/{filename}", 60)
 
