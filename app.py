@@ -71,22 +71,24 @@ def dashboard():
         .eq("username", user) \
         .execute()
 
-    # Shared files
-    shared = supabase.table("file_permissions") \
+    # Shared permissions (who shared to me)
+    shared_permissions = supabase.table("file_permissions") \
         .select("*") \
         .eq("shared_with", user) \
+        .order("created_at", desc=True) \
         .execute()
 
-    shared_filenames = [s["filename"] for s in shared.data] if shared.data else []
-
     shared_files = []
-    if shared_filenames:
-        shared_files = supabase.table("files") \
-            .select("*") \
-            .in_("filename", shared_filenames) \
-            .execute().data
 
-    # Get all users for checkbox display
+    if shared_permissions.data:
+        for permission in shared_permissions.data:
+            shared_files.append({
+                "filename": permission["filename"],
+                "owner": permission["owner"],
+                "shared_at": permission["created_at"]
+            })
+
+    # All users except current user
     users = supabase.table("users").select("username").execute()
     all_users = [u["username"] for u in users.data if u["username"] != user]
 
@@ -109,6 +111,7 @@ def upload():
     filename = file.filename
     file_bytes = file.read()
 
+    # Store file under user folder
     supabase.storage.from_("encrypted-files").upload(
         f"{session['user']}/{filename}",
         file_bytes,
@@ -172,8 +175,10 @@ def download(filename):
     if not own.data and not shared.data:
         return "Unauthorized", 403
 
+    owner_folder = user if own.data else shared.data[0]["owner"]
+
     signed = supabase.storage.from_("encrypted-files") \
-        .create_signed_url(f"{own.data[0]['username'] if own.data else shared.data[0]['owner']}/{filename}", 60)
+        .create_signed_url(f"{owner_folder}/{filename}", 60)
 
     return redirect(signed["signedURL"])
 

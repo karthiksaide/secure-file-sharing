@@ -12,13 +12,18 @@
 <h3>Your Files</h3>
 {% for file in own_files %}
     <p>
-        {{ file.filename }}
+        <b>{{ file.filename }}</b>
         <a href="/download/{{ file.filename }}">Download</a>
 
         <form action="/share/{{ file.filename }}" method="post">
-            {% for u in all_users %}
-                <input type="checkbox" name="users" value="{{ u }}"> {{ u }}
-            {% endfor %}
+            <div>
+                {% for u in all_users %}
+                    <label>
+                        <input type="checkbox" name="users" value="{{ u }}">
+                        {{ u }}
+                    </label>
+                {% endfor %}
+            </div>
             <button type="submit">Share Selected</button>
         </form>
     </p>
@@ -29,7 +34,9 @@
 <h3>Files Shared With You</h3>
 {% for file in shared_files %}
     <p>
-        {{ file.filename }}
+        <b>{{ file.filename }}</b><br>
+        Shared by: <b>{{ file.owner }}</b><br>
+        Shared at: {{ file.shared_at }}<br>
         <a href="/download/{{ file.filename }}">Download</a>
     </p>
 {% endfor %}
