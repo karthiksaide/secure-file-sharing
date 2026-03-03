@@ -10,10 +10,26 @@
 <hr>
 
 <h3>Your Files</h3>
-
-{% for file in files %}
+{% for file in own_files %}
     <p>
-        {{ file }}
-        <a href="/download/{{ file }}">Download</a>
+        {{ file.filename }}
+        <a href="/download/{{ file.filename }}">Download</a>
+
+        <form action="/share/{{ file.filename }}" method="post">
+            {% for u in all_users %}
+                <input type="checkbox" name="users" value="{{ u }}"> {{ u }}
+            {% endfor %}
+            <button type="submit">Share Selected</button>
+        </form>
+    </p>
+{% endfor %}
+
+<hr>
+
+<h3>Files Shared With You</h3>
+{% for file in shared_files %}
+    <p>
+        {{ file.filename }}
+        <a href="/download/{{ file.filename }}">Download</a>
     </p>
 {% endfor %}

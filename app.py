@@ -9,15 +9,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = "super-secret-key"
 
-# ---------------- ENV CONFIG ----------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 PRIVATE_KEY_DATA = os.environ.get("PRIVATE_KEY")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise Exception("Supabase environment variables missing")
-
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
 
 # ---------------- REGISTER ----------------
 @app.route("/register", methods=["GET", "POST"])
@@ -30,16 +27,17 @@ def register():
         if existing.data:
             return "User already exists"
 
-        hashed_password = generate_password_hash(password)
+        hashed = generate_password_hash(password)
 
         supabase.table("users").insert({
             "username": username,
-            "password": hashed_password
+            "password": hashed
         }).execute()
 
         return redirect("/")
 
     return render_template("register.html")
+
 
 # ---------------- LOGIN ----------------
 @app.route("/", methods=["GET", "POST"])
@@ -58,24 +56,48 @@ def login():
 
     return render_template("login.html")
 
+
 # ---------------- DASHBOARD ----------------
 @app.route("/dashboard")
 def dashboard():
     if "user" not in session:
         return redirect("/")
 
-    result = supabase.table("files") \
+    user = session["user"]
+
+    # Own files
+    own_files = supabase.table("files") \
         .select("*") \
-        .eq("username", session["user"]) \
+        .eq("username", user) \
         .execute()
 
-    filenames = [f["filename"] for f in result.data] if result.data else []
+    # Shared files
+    shared = supabase.table("file_permissions") \
+        .select("*") \
+        .eq("shared_with", user) \
+        .execute()
+
+    shared_filenames = [s["filename"] for s in shared.data] if shared.data else []
+
+    shared_files = []
+    if shared_filenames:
+        shared_files = supabase.table("files") \
+            .select("*") \
+            .in_("filename", shared_filenames) \
+            .execute().data
+
+    # Get all users for checkbox display
+    users = supabase.table("users").select("username").execute()
+    all_users = [u["username"] for u in users.data if u["username"] != user]
 
     return render_template(
         "index.html",
-        files=filenames,
-        user=session["user"]
+        own_files=own_files.data if own_files.data else [],
+        shared_files=shared_files,
+        all_users=all_users,
+        user=user
     )
+
 
 # ---------------- UPLOAD ----------------
 @app.route("/upload", methods=["POST"])
@@ -87,20 +109,17 @@ def upload():
     filename = file.filename
     file_bytes = file.read()
 
-    # Upload to storage
     supabase.storage.from_("encrypted-files").upload(
         f"{session['user']}/{filename}",
         file_bytes,
         {"content-type": "application/octet-stream"}
     )
 
-    # Encrypt dummy AES key
     private_key = RSA.import_key(PRIVATE_KEY_DATA.encode())
     public_key = private_key.publickey()
     cipher_rsa = PKCS1_OAEP.new(public_key)
     encrypted_key = cipher_rsa.encrypt(b"dummy_aes_key")
 
-    # Save metadata with owner
     supabase.table("files").insert({
         "filename": filename,
         "encrypted_key": base64.b64encode(encrypted_key).decode(),
@@ -109,34 +128,62 @@ def upload():
 
     return redirect("/dashboard")
 
+
+# ---------------- SHARE ----------------
+@app.route("/share/<filename>", methods=["POST"])
+def share(filename):
+    if "user" not in session:
+        return redirect("/")
+
+    selected_users = request.form.getlist("users")
+
+    for u in selected_users:
+        supabase.table("file_permissions").insert({
+            "filename": filename,
+            "owner": session["user"],
+            "shared_with": u
+        }).execute()
+
+    return redirect("/dashboard")
+
+
 # ---------------- DOWNLOAD ----------------
 @app.route("/download/<filename>")
 def download(filename):
     if "user" not in session:
         return redirect("/")
 
-    result = supabase.table("files") \
+    user = session["user"]
+
+    # Check ownership
+    own = supabase.table("files") \
         .select("*") \
         .eq("filename", filename) \
-        .eq("username", session["user"]) \
+        .eq("username", user) \
         .execute()
 
-    if not result.data:
-        return "Unauthorized or file not found", 403
+    # Check shared permission
+    shared = supabase.table("file_permissions") \
+        .select("*") \
+        .eq("filename", filename) \
+        .eq("shared_with", user) \
+        .execute()
+
+    if not own.data and not shared.data:
+        return "Unauthorized", 403
 
     signed = supabase.storage.from_("encrypted-files") \
-        .create_signed_url(f"{session['user']}/{filename}", 60)
-
-    if not signed or "signedURL" not in signed:
-        return "Could not generate signed URL", 500
+        .create_signed_url(f"{own.data[0]['username'] if own.data else shared.data[0]['owner']}/{filename}", 60)
 
     return redirect(signed["signedURL"])
+
 
 # ---------------- LOGOUT ----------------
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect("/")
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
