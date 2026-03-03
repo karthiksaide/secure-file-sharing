@@ -4,15 +4,44 @@ import os
 import base64
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = "your-secret-key"
+app.secret_key = "super-secret-key"
 
-# 🔹 Supabase Config (Render Environment Variables)
+
+# ---------------- ENV CONFIG ----------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")  # ✅ Must be SERVICE ROLE KEY
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")   # MUST be SERVICE ROLE KEY
+PRIVATE_KEY_DATA = os.environ.get("PRIVATE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise Exception("Supabase environment variables missing")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+# ---------------- REGISTER ----------------
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+
+        existing = supabase.table("users").select("*").eq("username", username).execute()
+        if existing.data:
+            return "User already exists"
+
+        hashed_password = generate_password_hash(password)
+
+        supabase.table("users").insert({
+            "username": username,
+            "password": hashed_password
+        }).execute()
+
+        return redirect("/")
+
+    return render_template("register.html")
 
 
 # ---------------- LOGIN ----------------
@@ -24,7 +53,7 @@ def login():
 
         result = supabase.table("users").select("*").eq("username", username).execute()
 
-        if result.data and result.data[0]["password"] == password:
+        if result.data and check_password_hash(result.data[0]["password"], password):
             session["user"] = username
             return redirect("/dashboard")
 
@@ -40,7 +69,16 @@ def dashboard():
         return redirect("/")
 
     result = supabase.table("files").select("*").execute()
-    return render_template("dashboard.html", files=result.data)
+
+    filenames = []
+    if result.data:
+        filenames = [f["filename"] for f in result.data]
+
+    return render_template(
+        "index.html",
+        files=filenames,
+        user=session["user"]
+    )
 
 
 # ---------------- UPLOAD ----------------
@@ -52,21 +90,18 @@ def upload():
     file = request.files["file"]
     filename = file.filename
 
-    # ✅ Upload file directly to Supabase Storage
+    # Upload file to Supabase Storage
     supabase.storage.from_("encrypted-files").upload(filename, file)
 
-    # 🔐 Get PRIVATE KEY from environment
-    private_key_data = os.environ.get("PRIVATE_KEY")
-    if not private_key_data:
-        return "Private key missing", 500
+    if not PRIVATE_KEY_DATA:
+        return "Private key not configured", 500
 
-    private_key = RSA.import_key(private_key_data.encode())
+    private_key = RSA.import_key(PRIVATE_KEY_DATA.encode())
     public_key = private_key.publickey()
 
     cipher_rsa = PKCS1_OAEP.new(public_key)
     encrypted_key = cipher_rsa.encrypt(b"dummy_aes_key")
 
-    # Save encrypted key in database
     supabase.table("files").insert({
         "filename": filename,
         "encrypted_key": base64.b64encode(encrypted_key).decode()
@@ -81,24 +116,20 @@ def download(filename):
     if "user" not in session:
         return redirect("/")
 
-    private_key_data = os.environ.get("PRIVATE_KEY")
-    if not private_key_data:
-        return "Private key not found in environment variables", 500
+    if not PRIVATE_KEY_DATA:
+        return "Private key not configured", 500
 
-    private_key = RSA.import_key(private_key_data.encode())
+    private_key = RSA.import_key(PRIVATE_KEY_DATA.encode())
     cipher_rsa = PKCS1_OAEP.new(private_key)
 
-    # Get encrypted AES key from DB
     result = supabase.table("files").select("*").eq("filename", filename).execute()
+
     if not result.data:
-        return "File not found in database", 404
+        return "File not found", 404
 
     encrypted_key = base64.b64decode(result.data[0]["encrypted_key"])
+    cipher_rsa.decrypt(encrypted_key)  # verification step
 
-    # Decrypt AES key (verification step)
-    cipher_rsa.decrypt(encrypted_key)
-
-    # Generate signed URL (valid 60 seconds)
     signed = supabase.storage.from_("encrypted-files").create_signed_url(filename, 60)
 
     if not signed or "signedURL" not in signed:
