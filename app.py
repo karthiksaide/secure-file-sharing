@@ -9,17 +9,15 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = "super-secret-key"
 
-
 # ---------------- ENV CONFIG ----------------
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")   # MUST be SERVICE ROLE KEY
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 PRIVATE_KEY_DATA = os.environ.get("PRIVATE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise Exception("Supabase environment variables missing")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
 
 # ---------------- REGISTER ----------------
 @app.route("/register", methods=["GET", "POST"])
@@ -43,7 +41,6 @@ def register():
 
     return render_template("register.html")
 
-
 # ---------------- LOGIN ----------------
 @app.route("/", methods=["GET", "POST"])
 def login():
@@ -61,25 +58,24 @@ def login():
 
     return render_template("login.html")
 
-
 # ---------------- DASHBOARD ----------------
 @app.route("/dashboard")
 def dashboard():
     if "user" not in session:
         return redirect("/")
 
-    result = supabase.table("files").select("*").execute()
+    result = supabase.table("files") \
+        .select("*") \
+        .eq("username", session["user"]) \
+        .execute()
 
-    filenames = []
-    if result.data:
-        filenames = [f["filename"] for f in result.data]
+    filenames = [f["filename"] for f in result.data] if result.data else []
 
     return render_template(
         "index.html",
         files=filenames,
         user=session["user"]
     )
-
 
 # ---------------- UPLOAD ----------------
 @app.route("/upload", methods=["POST"])
@@ -89,33 +85,29 @@ def upload():
 
     file = request.files["file"]
     filename = file.filename
-
-    # Read file as bytes
     file_bytes = file.read()
 
-    # Upload bytes to Supabase Storage
+    # Upload to storage
     supabase.storage.from_("encrypted-files").upload(
-        filename,
+        f"{session['user']}/{filename}",
         file_bytes,
         {"content-type": "application/octet-stream"}
     )
 
-    if not PRIVATE_KEY_DATA:
-        return "Private key not configured", 500
-
+    # Encrypt dummy AES key
     private_key = RSA.import_key(PRIVATE_KEY_DATA.encode())
     public_key = private_key.publickey()
-
     cipher_rsa = PKCS1_OAEP.new(public_key)
     encrypted_key = cipher_rsa.encrypt(b"dummy_aes_key")
 
+    # Save metadata with owner
     supabase.table("files").insert({
         "filename": filename,
-        "encrypted_key": base64.b64encode(encrypted_key).decode()
+        "encrypted_key": base64.b64encode(encrypted_key).decode(),
+        "username": session["user"]
     }).execute()
 
     return redirect("/dashboard")
-
 
 # ---------------- DOWNLOAD ----------------
 @app.route("/download/<filename>")
@@ -123,34 +115,28 @@ def download(filename):
     if "user" not in session:
         return redirect("/")
 
-    if not PRIVATE_KEY_DATA:
-        return "Private key not configured", 500
-
-    private_key = RSA.import_key(PRIVATE_KEY_DATA.encode())
-    cipher_rsa = PKCS1_OAEP.new(private_key)
-
-    result = supabase.table("files").select("*").eq("filename", filename).execute()
+    result = supabase.table("files") \
+        .select("*") \
+        .eq("filename", filename) \
+        .eq("username", session["user"]) \
+        .execute()
 
     if not result.data:
-        return "File not found", 404
+        return "Unauthorized or file not found", 403
 
-    encrypted_key = base64.b64decode(result.data[0]["encrypted_key"])
-    cipher_rsa.decrypt(encrypted_key)  # verification step
-
-    signed = supabase.storage.from_("encrypted-files").create_signed_url(filename, 60)
+    signed = supabase.storage.from_("encrypted-files") \
+        .create_signed_url(f"{session['user']}/{filename}", 60)
 
     if not signed or "signedURL" not in signed:
         return "Could not generate signed URL", 500
 
     return redirect(signed["signedURL"])
 
-
 # ---------------- LOGOUT ----------------
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect("/")
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
