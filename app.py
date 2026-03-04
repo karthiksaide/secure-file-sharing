@@ -1,6 +1,5 @@
 from flask import Flask, request, send_file
 import os
-
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
@@ -8,13 +7,10 @@ from Crypto.Random import get_random_bytes
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
-ENCRYPTED_FOLDER = "encrypted"
-
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(ENCRYPTED_FOLDER, exist_ok=True)
 
 
-# ---------------- RSA KEY GENERATION ----------------
+# ---------- GENERATE RSA KEYS ----------
 def generate_keys():
     if not os.path.exists("private.pem"):
         key = RSA.generate(2048)
@@ -29,7 +25,21 @@ def generate_keys():
 generate_keys()
 
 
-# ---------------- AES FILE ENCRYPTION ----------------
+# ---------- HOME PAGE ----------
+@app.route("/")
+def home():
+    return """
+    <h2>Secure File Sharing</h2>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" name="file">
+        <button type="submit">Upload</button>
+    </form>
+    <br>
+    <a href="/download">Download Decrypted File</a>
+    """
+
+
+# ---------- AES ENCRYPT FILE ----------
 def encrypt_file(file_path):
 
     aes_key = get_random_bytes(32)
@@ -41,47 +51,47 @@ def encrypt_file(file_path):
 
     ciphertext, tag = cipher.encrypt_and_digest(data)
 
-    enc_file = file_path + ".enc"
+    enc_path = file_path + ".enc"
 
-    with open(enc_file, "wb") as f:
+    with open(enc_path, "wb") as f:
         f.write(cipher.nonce)
         f.write(tag)
         f.write(ciphertext)
 
-    return enc_file, aes_key
+    return enc_path, aes_key
 
 
-# ---------------- RSA AES KEY ENCRYPT ----------------
+# ---------- RSA ENCRYPT AES KEY ----------
 def encrypt_aes_key(aes_key):
 
     with open("public.pem", "rb") as f:
         public_key = RSA.import_key(f.read())
 
-    cipher_rsa = PKCS1_OAEP.new(public_key)
+    cipher = PKCS1_OAEP.new(public_key)
 
-    encrypted_key = cipher_rsa.encrypt(aes_key)
+    encrypted_key = cipher.encrypt(aes_key)
 
     with open("aes_key.enc", "wb") as f:
         f.write(encrypted_key)
 
 
-# ---------------- RSA AES KEY DECRYPT ----------------
+# ---------- RSA DECRYPT AES KEY ----------
 def decrypt_aes_key():
 
     with open("private.pem", "rb") as f:
         private_key = RSA.import_key(f.read())
 
-    cipher_rsa = PKCS1_OAEP.new(private_key)
+    cipher = PKCS1_OAEP.new(private_key)
 
     with open("aes_key.enc", "rb") as f:
         encrypted_key = f.read()
 
-    aes_key = cipher_rsa.decrypt(encrypted_key)
+    aes_key = cipher.decrypt(encrypted_key)
 
     return aes_key
 
 
-# ---------------- FILE DECRYPTION ----------------
+# ---------- DECRYPT FILE ----------
 def decrypt_file(enc_file):
 
     aes_key = decrypt_aes_key()
@@ -103,35 +113,40 @@ def decrypt_file(enc_file):
     return output_file
 
 
-# ---------------- UPLOAD ROUTE ----------------
+# ---------- UPLOAD ----------
 @app.route("/upload", methods=["POST"])
 def upload():
 
     file = request.files["file"]
 
-    path = os.path.join(UPLOAD_FOLDER, file.filename)
+    filepath = os.path.join(UPLOAD_FOLDER, file.filename)
 
-    file.save(path)
+    file.save(filepath)
 
-    enc_file, aes_key = encrypt_file(path)
+    enc_file, aes_key = encrypt_file(filepath)
 
     encrypt_aes_key(aes_key)
 
     return "File uploaded and encrypted successfully"
 
 
-# ---------------- DOWNLOAD ROUTE ----------------
+# ---------- DOWNLOAD ----------
 @app.route("/download")
 def download():
 
-    enc_file = os.path.join(UPLOAD_FOLDER, os.listdir(UPLOAD_FOLDER)[0] + ".enc")
+    files = os.listdir(UPLOAD_FOLDER)
 
-    decrypted = decrypt_file(enc_file)
+    if not files:
+        return "No file uploaded yet"
 
-    return send_file(decrypted, as_attachment=True)
+    enc_file = os.path.join(UPLOAD_FOLDER, files[0] + ".enc")
+
+    decrypted_file = decrypt_file(enc_file)
+
+    return send_file(decrypted_file, as_attachment=True)
 
 
-# ---------------- RUN ----------------
+# ---------- RUN ----------
 if __name__ == "__main__":
 
     port = int(os.environ.get("PORT", 10000))
