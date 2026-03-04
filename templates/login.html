@@ -1,7 +1,6 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
 <title>FileLite Login</title>
 
 <style>
@@ -9,11 +8,11 @@
 body{
 margin:0;
 font-family:Arial;
-height:100vh;
 display:flex;
+height:100vh;
 }
 
-.left{
+.left-panel{
 flex:1;
 background:linear-gradient(135deg,#5f6dfc,#7b5cff);
 display:flex;
@@ -21,15 +20,25 @@ justify-content:center;
 align-items:center;
 color:white;
 text-align:center;
-padding:40px;
+padding:60px;
 }
 
-.right{
+.left-panel h1{
+font-size:52px;
+margin-bottom:20px;
+}
+
+.left-panel p{
+font-size:20px;
+line-height:1.6;
+}
+
+.right-panel{
 flex:1;
 display:flex;
 justify-content:center;
 align-items:center;
-background:#f2f3f7;
+background:#f3f4f6;
 }
 
 .card{
@@ -53,11 +62,13 @@ border:1px solid #ccc;
 border-radius:6px;
 }
 
-.options{
+.show-pass{
 display:flex;
 align-items:center;
+justify-content:flex-end;
 gap:8px;
 margin-bottom:15px;
+font-size:14px;
 }
 
 button{
@@ -80,53 +91,39 @@ text-align:center;
 margin-top:15px;
 }
 
-.error{
-color:red;
-font-size:14px;
-margin-bottom:10px;
-text-align:center;
-}
-
-.success{
-color:green;
-font-size:14px;
-margin-bottom:10px;
-text-align:center;
-}
-
 </style>
+
 </head>
 
 <body>
 
-<div class="left">
+<div class="left-panel">
 
 <div>
 <h1>FileLite</h1>
-<p>Secure cloud file sharing platform.<br>
-Upload, store and share files safely.</p>
+<p>
+Secure cloud file sharing platform.<br>
+Upload, store and share files safely.
+</p>
 </div>
 
 </div>
 
-<div class="right">
+<div class="right-panel">
 
 <div class="card">
 
 <h2>Login</h2>
 
-<div class="error">{{ error }}</div>
-<div class="success">{{ message }}</div>
-
-<form action="/login" method="POST">
+<form method="POST">
 
 <input type="text" name="username" placeholder="Username" required>
 
 <input type="password" id="password" name="password" placeholder="Password" required>
 
-<div class="options">
-<input type="checkbox" onclick="togglePassword()">
-<label>Show password</label>
+<div class="show-pass">
+<label for="showpass">Show password</label>
+<input type="checkbox" id="showpass" onclick="togglePassword()">
 </div>
 
 <button type="submit">Login</button>
@@ -144,8 +141,15 @@ Don't have an account? <a href="/register">Create account</a>
 <script>
 
 function togglePassword(){
+
 let p=document.getElementById("password");
-p.type=p.type==="password"?"text":"password";
+
+if(p.type==="password"){
+p.type="text";
+}else{
+p.type="password";
+}
+
 }
 
 </script>
