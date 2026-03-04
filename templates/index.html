@@ -6,7 +6,6 @@
 <title>FileLite Dashboard</title>
 <style>
 body{ margin:0; font-family:Arial; background:#f2f3f7; }
-
 .header{
   background:#6b6dfc; color:white;
   padding:15px 25px;
@@ -45,11 +44,13 @@ button.confirm-delete{ background:#e74c3c; }
   padding:12px 0; flex-wrap:wrap; gap:8px;
 }
 .file:last-child{ border-bottom:none; }
+.file-info{ display:flex; flex-direction:column; gap:3px; }
 .file-name{
   display:flex; align-items:center;
   gap:8px; font-size:15px; word-break:break-all;
 }
 .file-owner{ font-size:12px; color:#999; }
+.file-time{ font-size:11px; color:#bbb; margin-left:26px; }
 .actions{ display:flex; gap:8px; flex-shrink:0; flex-wrap:wrap; }
 .actions a{
   text-decoration:none; color:white;
@@ -73,12 +74,6 @@ button.confirm-delete{ background:#e74c3c; }
   box-shadow:0 10px 40px rgba(0,0,0,0.2);
 }
 .modal h3, .confirm-modal h3{ margin-top:0; margin-bottom:15px; }
-.modal input[type=text]{
-  width:100%; padding:10px;
-  border:1px solid #ccc; border-radius:6px;
-  font-size:14px; box-sizing:border-box;
-  background:#f8f8f8; margin-bottom:8px;
-}
 .modal-actions, .confirm-modal-actions{
   display:flex; gap:10px; justify-content:flex-end; margin-top:15px;
 }
@@ -86,15 +81,14 @@ button.confirm-delete{ background:#e74c3c; }
 .confirm-modal p{ color:#555; font-size:15px; margin:8px 0 20px; }
 .confirm-modal .file-label{ font-weight:bold; color:#333; }
 .confirm-modal-actions{ justify-content:center; }
-.copied-msg{ color:green; font-size:13px; margin-top:4px; display:none; }
 .share-users{
-  max-height:140px; overflow-y:auto;
+  max-height:160px; overflow-y:auto;
   border:1px solid #eee; border-radius:6px;
   padding:8px; margin-bottom:10px;
 }
 .share-users label{
   display:flex; align-items:center; gap:8px;
-  padding:4px 2px; font-size:14px; cursor:pointer;
+  padding:5px 2px; font-size:14px; cursor:pointer;
 }
 .share-users label:hover{ color:#6b6dfc; }
 .no-users{ color:#aaa; font-size:14px; text-align:center; padding:10px; }
@@ -125,7 +119,6 @@ button.confirm-delete{ background:#e74c3c; }
   </div>
 </div>
 
-<!-- MAIN -->
 <div class="container">
 
   <!-- Upload -->
@@ -135,8 +128,9 @@ button.confirm-delete{ background:#e74c3c; }
     <p class="warning">&#9888; {{ error }}</p>
     {% endif %}
     <p id="sizeWarning" class="warning"></p>
-    <form action="/upload" method="POST" enctype="multipart/form-data" onsubmit="return validateFile()">
-      <input type="file" id="fileInput" name="file" required onchange="previewFile()">
+    <form action="/upload" method="POST" enctype="multipart/form-data" onsubmit="return validateFiles()">
+      <!-- multiple attribute allows selecting many files at once -->
+      <input type="file" id="fileInput" name="file" multiple required onchange="previewFiles()">
       <div id="previewArea" class="preview"></div>
       <br>
       <button type="submit">&#11014; Upload</button>
@@ -182,13 +176,20 @@ button.confirm-delete{ background:#e74c3c; }
     {% if shared_files %}
       {% for file in shared_files %}
       <div class="file">
-        <div class="file-name">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-          </svg>
-          {{ file.filename }}
-          <span class="file-owner">by {{ file.owner }}</span>
+        <div class="file-info">
+          <div class="file-name">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            {{ file.filename }}
+            <span class="file-owner">by {{ file.owner }}</span>
+          </div>
+          {% if file.shared_at %}
+          <div class="file-time">
+            Shared on {{ file.shared_at[:10] }} at {{ file.shared_at[11:16] }}
+          </div>
+          {% endif %}
         </div>
         <div class="actions">
           <a href="/download/{{ file.filename }}">&#11015; Download</a>
@@ -209,16 +210,12 @@ button.confirm-delete{ background:#e74c3c; }
 
 </div>
 
-<!-- SHARE MODAL -->
+<!-- SHARE MODAL (no copy link) -->
 <div class="modal-overlay" id="shareModal">
   <div class="modal">
     <h3>&#128279; Share File</h3>
-    <p style="margin:0 0 10px;color:#555;font-size:14px;">Copy link or pick a user to share with:</p>
-    <input type="text" id="shareLinkInput" readonly>
-    <div class="copied-msg" id="copiedMsg">&#9989; Link copied!</div>
-    <button onclick="copyLink()" style="margin-bottom:18px;width:100%;">Copy Link</button>
+    <p style="margin:0 0 12px;color:#555;font-size:14px;">Select users to share with:</p>
     <form id="shareForm" method="POST">
-      <p style="margin:0 0 8px;font-size:14px;font-weight:bold;">Share with user:</p>
       <div class="share-users" id="shareUserList"></div>
       <div class="modal-actions">
         <button type="button" class="cancel" onclick="closeShareModal()">Cancel</button>
@@ -243,48 +240,57 @@ button.confirm-delete{ background:#e74c3c; }
   </div>
 </div>
 
-<!-- Hidden DELETE form — sends POST to Flask -->
+<!-- Hidden DELETE form -->
 <form id="deleteForm" method="POST" style="display:none;"></form>
 
 <script>
-// Users list from Flask
 const ALL_USERS = {{ all_users | tojson }};
 
-// ── Upload validation ──
-function validateFile(){
-  const file = document.getElementById("fileInput").files[0];
+// ── Multiple file validation ──
+function validateFiles(){
+  const files = document.getElementById("fileInput").files;
   const warn = document.getElementById("sizeWarning");
-  if(!file) return false;
-  if(file.size > 50*1024*1024){
-    warn.textContent = "File exceeds 50MB limit!";
-    return false;
+  if(!files.length) return false;
+  for(let i = 0; i < files.length; i++){
+    if(files[i].size > 50*1024*1024){
+      warn.textContent = `"${files[i].name}" exceeds 50MB limit!`;
+      return false;
+    }
   }
   warn.textContent = "";
   return true;
 }
 
-// ── Image preview ──
-function previewFile(){
-  const file = document.getElementById("fileInput").files[0];
+// ── Multiple file preview ──
+function previewFiles(){
+  const files = document.getElementById("fileInput").files;
   const area = document.getElementById("previewArea");
   area.innerHTML = "";
-  if(!file) return;
+  if(!files.length) return;
+
+  // Show count if more than 1
+  if(files.length > 1){
+    area.innerHTML = `<p style="margin:8px 0;color:#555;">${files.length} files selected:</p>`;
+    for(let i = 0; i < files.length; i++){
+      area.innerHTML += `<div style="font-size:13px;color:#777;">&#128196; ${files[i].name}</div>`;
+    }
+    return;
+  }
+
+  // Single file — show image preview if image
+  const file = files[0];
   if(file.type.startsWith("image")){
     const img = document.createElement("img");
     img.src = URL.createObjectURL(file);
     area.appendChild(img);
   } else {
-    area.innerHTML = "Selected: <strong>" + file.name + "</strong>";
+    area.innerHTML = `Selected: <strong>${file.name}</strong>`;
   }
 }
 
 // ── Share Modal ──
 function openShareModal(filename){
-  document.getElementById("shareLinkInput").value =
-    window.location.origin + "/download/" + encodeURIComponent(filename);
-  document.getElementById("copiedMsg").style.display = "none";
   document.getElementById("shareForm").action = "/share/" + encodeURIComponent(filename);
-
   const list = document.getElementById("shareUserList");
   list.innerHTML = "";
   if(ALL_USERS.length === 0){
@@ -301,14 +307,6 @@ function openShareModal(filename){
 
 function closeShareModal(){
   document.getElementById("shareModal").classList.remove("active");
-}
-
-function copyLink(){
-  const input = document.getElementById("shareLinkInput");
-  input.select();
-  navigator.clipboard.writeText(input.value).then(() => {
-    document.getElementById("copiedMsg").style.display = "block";
-  });
 }
 
 // ── Delete Modal ──
@@ -332,7 +330,6 @@ function confirmDelete(){
   form.submit();
 }
 
-// Close modals when clicking outside
 document.getElementById("shareModal").addEventListener("click", e => {
   if(e.target === e.currentTarget) closeShareModal();
 });
