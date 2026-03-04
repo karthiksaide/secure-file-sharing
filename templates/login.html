@@ -1,26 +1,46 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Login</title>
+<title>Login</title>
+
+<script>
+function togglePassword(){
+let p=document.getElementById("password");
+p.type=p.type==="password"?"text":"password";
+}
+</script>
+
 </head>
 <body>
 
 <h2>Login</h2>
 
 <form method="POST">
-    Username:<br>
-    <input type="text" name="username" required><br><br>
 
-    Password:<br>
-    <input type="password" name="password" required><br><br>
+Username<br>
+<input type="text" name="username" required><br><br>
 
-    <button type="submit">Login</button>
+Password<br>
+<input type="password" id="password" name="password" required>
+
+<input type="checkbox" onclick="togglePassword()"> Show Password
+
+<br><br>
+
+<button type="submit">Login</button>
+
 </form>
 
-<br>
+<p>Don't have account?</p>
 
-<p>Don't have an account?</p>
-<a href="/register">Register here</a>
+<a href="/register">Register</a>
+
+<hr>
+
+<a href="/about">About</a> |
+<a href="/help">Help</a>
+
+<p>© 2026 Secure File Sharing. All rights reserved.</p>
 
 </body>
 </html>

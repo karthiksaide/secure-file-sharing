@@ -1,75 +1,91 @@
-<h2>Welcome {{ user }}</h2>
+<!DOCTYPE html>
+<html>
+<head>
+<title>Dashboard</title>
+</head>
+<body>
+
+<h2>Welcome {{user}}</h2>
+
 <a href="/logout">Logout</a>
 
 <hr>
 
 <h3>Upload File</h3>
-<form action="/upload" method="post" enctype="multipart/form-data">
-    <input type="file" name="file" required>
-    <button type="submit">Upload</button>
+
+<form action="/upload" method="POST" enctype="multipart/form-data">
+<input type="file" name="file">
+<button type="submit">Upload</button>
 </form>
 
 <hr>
 
 <h3>Your Files</h3>
 
-{% if own_files %}
-    {% for file in own_files %}
-        <div style="margin-bottom:20px; padding:10px; border:1px solid #ccc;">
-            
-            <b>{{ file.filename }}</b><br><br>
+<input type="text" id="searchInput" placeholder="Search files">
 
-            <!-- Download -->
-            <a href="/download/{{ file.filename }}">
-                <button type="button">Download</button>
-            </a>
+<ul id="fileList">
 
-            <!-- Delete -->
-            <form action="/delete/{{ file.filename }}" method="post" style="display:inline;">
-                <button type="submit">Delete</button>
-            </form>
+{% for file in own_files %}
 
-            <br><br>
+<li>
 
-            <!-- Share Section -->
-            <form action="/share/{{ file.filename }}" method="post">
-                <div>
-                    <b>Share with:</b><br>
-                    {% for u in all_users %}
-                        <label style="margin-right:10px;">
-                            <input type="checkbox" name="users" value="{{ u }}">
-                            {{ u }}
-                        </label>
-                    {% endfor %}
-                </div>
-                <br>
-                <button type="submit">Share Selected</button>
-            </form>
+{{file.filename}}
 
-        </div>
-    {% endfor %}
-{% else %}
-    <p>No files uploaded yet.</p>
-{% endif %}
+<a href="/download/{{file.filename}}">Download</a>
+
+<form action="/delete/{{file.filename}}" method="POST" style="display:inline;">
+<button type="submit">Delete</button>
+</form>
+
+<form action="/share/{{file.filename}}" method="POST">
+
+<select name="users" multiple>
+
+{% for u in all_users %}
+
+<option value="{{u}}">{{u}}</option>
+
+{% endfor %}
+
+</select>
+
+<button type="submit">Share</button>
+
+</form>
+
+</li>
+
+{% endfor %}
+
+</ul>
 
 <hr>
 
 <h3>Files Shared With You</h3>
 
-{% if shared_files %}
-    {% for file in shared_files %}
-        <div style="margin-bottom:20px; padding:10px; border:1px solid #ccc;">
-            
-            <b>{{ file.filename }}</b><br>
-            Shared by: <b>{{ file.owner }}</b><br>
-            Shared at: {{ file.shared_at }}<br><br>
+<ul>
 
-            <a href="/download/{{ file.filename }}">
-                <button type="button">Download</button>
-            </a>
+{% for f in shared_files %}
 
-        </div>
-    {% endfor %}
-{% else %}
-    <p>No files shared with you.</p>
-{% endif %}
+<li>
+
+{{f.filename}} from {{f.owner}}
+
+<a href="/download/{{f.filename}}">Download</a>
+
+</li>
+
+{% endfor %}
+
+</ul>
+
+<hr>
+
+<a href="/about">About</a> |
+<a href="/help">Help</a>
+
+<p>© 2026 Secure File Sharing Application. All rights reserved.</p>
+
+</body>
+</html>

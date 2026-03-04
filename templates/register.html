@@ -1,16 +1,29 @@
-<h2>Register</h2>
+<!DOCTYPE html>
+<html>
+<head>
+<title>Register</title>
+</head>
+<body>
+
+<h2>Create Account</h2>
+
 <form method="POST">
-    <input name="username" placeholder="Username" required><br><br>
 
-    <input type="password" id="password" name="password" required>
-    <button type="button" onclick="togglePassword()">Show</button><br><br>
+Username<br>
+<input type="text" name="username" required><br><br>
 
-    <button type="submit">Register</button>
+Password<br>
+<input type="password" name="password" required><br><br>
+
+<button type="submit">Register</button>
+
 </form>
 
-<script>
-function togglePassword() {
-    var x = document.getElementById("password");
-    x.type = x.type === "password" ? "text" : "password";
-}
-</script>
+<a href="/">Back to Login</a>
+
+<hr>
+
+<p>© 2026 Secure File Sharing. All rights reserved.</p>
+
+</body>
+</html>
