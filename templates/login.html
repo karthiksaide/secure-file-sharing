@@ -1,158 +1,63 @@
+
 <!DOCTYPE html>
 <html>
 <head>
 <title>FileLite Login</title>
-
 <style>
-
-body{
-margin:0;
-font-family:Arial;
-display:flex;
-height:100vh;
-}
-
-.left-panel{
-flex:1;
-background:linear-gradient(135deg,#5f6dfc,#7b5cff);
-display:flex;
-justify-content:center;
-align-items:center;
-color:white;
-text-align:center;
-padding:60px;
-}
-
-.left-panel h1{
-font-size:52px;
-margin-bottom:20px;
-}
-
-.left-panel p{
-font-size:20px;
-line-height:1.6;
-}
-
-.right-panel{
-flex:1;
-display:flex;
-justify-content:center;
-align-items:center;
-background:#f3f4f6;
-}
-
-.card{
-background:white;
-padding:35px;
-width:350px;
-border-radius:12px;
-box-shadow:0 5px 20px rgba(0,0,0,0.1);
-}
-
-.card h2{
-text-align:center;
-margin-bottom:20px;
-}
-
-input{
-width:100%;
-padding:10px;
-margin-bottom:15px;
-border:1px solid #ccc;
-border-radius:6px;
-}
-
-.show-pass{
-display:flex;
-align-items:center;
-justify-content:flex-end;
-gap:8px;
-margin-bottom:15px;
-font-size:14px;
-}
-
-button{
-width:100%;
-padding:12px;
-background:#6b6dfc;
-border:none;
-color:white;
-font-size:16px;
-border-radius:6px;
-cursor:pointer;
-}
-
-button:hover{
-background:#5a5cff;
-}
-
-.link{
-text-align:center;
-margin-top:15px;
-}
-
+body{margin:0;font-family:Arial;display:flex;height:100vh;}
+.left-panel{flex:1;background:linear-gradient(135deg,#5f6dfc,#7b5cff);display:flex;justify-content:center;align-items:center;color:white;text-align:center;padding:60px;}
+.left-panel h1{font-size:52px;margin-bottom:20px;margin-top:10px;}
+.left-panel p{font-size:20px;line-height:1.6;}
+.right-panel{flex:1;display:flex;justify-content:center;align-items:center;background:#f3f4f6;}
+.card{background:white;padding:35px;width:350px;border-radius:12px;box-shadow:0 5px 20px rgba(0,0,0,0.1);}
+.card h2{text-align:center;margin-bottom:20px;}
+input{width:100%;padding:10px;margin-bottom:15px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;}
+.show-pass{display:flex;align-items:center;justify-content:flex-start;gap:8px;margin-bottom:15px;font-size:14px;}
+.show-pass input[type="checkbox"]{width:auto;margin:0;padding:0;cursor:pointer;}
+button{width:100%;padding:12px;background:#6b6dfc;border:none;color:white;font-size:16px;border-radius:6px;cursor:pointer;}
+button:hover{background:#5a5cff;}
+.link{text-align:center;margin-top:15px;}
 </style>
-
 </head>
-
 <body>
-
 <div class="left-panel">
-
 <div>
+<svg width="120" height="110" viewBox="0 0 120 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <ellipse cx="60" cy="55" rx="42" ry="30" fill="white" opacity="0.95"/>
+  <ellipse cx="38" cy="62" rx="22" ry="20" fill="white" opacity="0.95"/>
+  <ellipse cx="82" cy="62" rx="22" ry="20" fill="white" opacity="0.95"/>
+  <rect x="16" y="62" width="88" height="22" fill="white" opacity="0.95"/>
+  <rect x="42" y="32" width="36" height="48" rx="3" fill="#29b6f6"/>
+  <polygon points="66,32 78,44 66,44" fill="#0288d1"/>
+  <polygon points="66,32 78,32 78,44" fill="#4fc3f7"/>
+  <rect x="47" y="52" width="22" height="3" rx="1.5" fill="white" opacity="0.85"/>
+  <rect x="47" y="59" width="22" height="3" rx="1.5" fill="white" opacity="0.85"/>
+  <rect x="47" y="66" width="15" height="3" rx="1.5" fill="white" opacity="0.85"/>
+</svg>
 <h1>FileLite</h1>
-<p>
-Secure cloud file sharing platform.<br>
-Upload, store and share files safely.
-</p>
+<p>Secure cloud file sharing platform.<br>Upload, store and share files safely.</p>
 </div>
-
 </div>
-
 <div class="right-panel">
-
 <div class="card">
-
 <h2>Login</h2>
-
 <form method="POST">
-
 <input type="text" name="username" placeholder="Username" required>
-
 <input type="password" id="password" name="password" placeholder="Password" required>
-
 <div class="show-pass">
 <label for="showpass">Show password</label>
 <input type="checkbox" id="showpass" onclick="togglePassword()">
 </div>
-
 <button type="submit">Login</button>
-
 </form>
-
-<div class="link">
-Don't have an account? <a href="/register">Create account</a>
+<div class="link">Don't have an account? <a href="/register">Create account</a></div>
 </div>
-
 </div>
-
-</div>
-
 <script>
-
 function togglePassword(){
-
-let p=document.getElementById("password");
-
-if(p.type==="password"){
-p.type="text";
-}else{
-p.type="password";
+  let p=document.getElementById("password");
+  p.type = p.type==="password" ? "text" : "password";
 }
-
-}
-
 </script>
-
 </body>
 </html>
