@@ -1,44 +1,135 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<title>Dashboard</title>
+
+<title>FileLite Dashboard</title>
+
+<style>
+
+body{
+margin:0;
+font-family:Arial;
+background:#f8fafc;
+}
+
+.sidebar{
+width:220px;
+height:100vh;
+background:#1e293b;
+color:white;
+position:fixed;
+padding:20px;
+}
+
+.sidebar h2{
+margin-top:0;
+}
+
+.sidebar a{
+display:block;
+color:white;
+text-decoration:none;
+margin:15px 0;
+}
+
+.main{
+margin-left:240px;
+padding:30px;
+}
+
+.card{
+background:white;
+padding:20px;
+margin-bottom:20px;
+border-radius:8px;
+box-shadow:0 5px 15px rgba(0,0,0,0.05);
+}
+
+button{
+padding:6px 12px;
+margin-left:5px;
+}
+
+</style>
+
+<script>
+
+function searchFiles(){
+
+let input=document.getElementById("search").value.toLowerCase();
+let rows=document.querySelectorAll(".file");
+
+rows.forEach(r=>{
+r.style.display=r.innerText.toLowerCase().includes(input)?"":"none";
+})
+
+}
+
+</script>
+
 </head>
+
 <body>
+
+<div class="sidebar">
+
+<h2>⬢ FileLite</h2>
+
+<a href="/dashboard">Dashboard</a>
+<a href="/help">Help</a>
+<a href="/about">About</a>
+<a href="/logout">Logout</a>
+
+</div>
+
+
+<div class="main">
 
 <h2>Welcome {{user}}</h2>
 
-<a href="/logout">Logout</a>
+<input id="search" placeholder="Search files..." onkeyup="searchFiles()">
 
-<hr>
+<div class="card">
 
 <h3>Upload File</h3>
 
 <form action="/upload" method="POST" enctype="multipart/form-data">
+
 <input type="file" name="file">
-<button type="submit">Upload</button>
+
+<button>Upload</button>
+
 </form>
 
-<hr>
+</div>
+
+
+<div class="card">
 
 <h3>Your Files</h3>
 
-<input type="text" id="searchInput" placeholder="Search files">
-
-<ul id="fileList">
-
 {% for file in own_files %}
 
-<li>
+<div class="file">
 
-{{file.filename}}
+<b>{{file.filename}}</b>
+
+<br>
+
+<small>Uploaded: {{file.created_at}}</small>
+
+<br>
 
 <a href="/download/{{file.filename}}">Download</a>
 
-<form action="/delete/{{file.filename}}" method="POST" style="display:inline;">
-<button type="submit">Delete</button>
+<form action="/delete/{{file.filename}}" method="POST" style="display:inline">
+
+<button>Delete</button>
+
 </form>
 
-<form action="/share/{{file.filename}}" method="POST">
+<form action="/share/{{file.filename}}" method="POST" style="display:inline">
 
 <select name="users" multiple>
 
@@ -50,42 +141,40 @@
 
 </select>
 
-<button type="submit">Share</button>
+<button>Share</button>
 
 </form>
 
-</li>
+</div>
+
+<hr>
 
 {% endfor %}
 
-</ul>
+</div>
 
-<hr>
+
+<div class="card">
 
 <h3>Files Shared With You</h3>
 
-<ul>
-
 {% for f in shared_files %}
 
-<li>
+<div>
 
-{{f.filename}} from {{f.owner}}
+<b>{{f.filename}}</b>
+
+from {{f.owner}}
 
 <a href="/download/{{f.filename}}">Download</a>
 
-</li>
+</div>
 
 {% endfor %}
 
-</ul>
+</div>
 
-<hr>
-
-<a href="/about">About</a> |
-<a href="/help">Help</a>
-
-<p>© 2026 Secure File Sharing Application. All rights reserved.</p>
+</div>
 
 </body>
 </html>

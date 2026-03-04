@@ -1,46 +1,84 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Login</title>
+
+<title>FileLite Login</title>
+
+<style>
+
+body{
+font-family:Arial;
+background:#f1f5f9;
+display:flex;
+justify-content:center;
+align-items:center;
+height:100vh;
+}
+
+.card{
+background:white;
+padding:40px;
+border-radius:10px;
+width:320px;
+box-shadow:0 10px 30px rgba(0,0,0,0.1);
+}
+
+h2{
+text-align:center;
+}
+
+input{
+width:100%;
+padding:10px;
+margin-top:10px;
+}
+
+button{
+width:100%;
+padding:10px;
+margin-top:15px;
+background:#6366f1;
+border:none;
+color:white;
+cursor:pointer;
+}
+
+</style>
 
 <script>
 function togglePassword(){
-let p=document.getElementById("password");
+var p=document.getElementById("password");
 p.type=p.type==="password"?"text":"password";
 }
 </script>
 
 </head>
+
 <body>
 
-<h2>Login</h2>
+<div class="card">
+
+<h2>⬢ FileLite</h2>
 
 <form method="POST">
 
-Username<br>
-<input type="text" name="username" required><br><br>
+<input type="text" name="username" placeholder="Username" required>
 
-Password<br>
-<input type="password" id="password" name="password" required>
+<input type="password" id="password" name="password" placeholder="Password" required>
 
+<label>
 <input type="checkbox" onclick="togglePassword()"> Show Password
-
-<br><br>
+</label>
 
 <button type="submit">Login</button>
 
 </form>
 
-<p>Don't have account?</p>
+<p style="text-align:center">
+<a href="/register">Create account</a>
+</p>
 
-<a href="/register">Register</a>
-
-<hr>
-
-<a href="/about">About</a> |
-<a href="/help">Help</a>
-
-<p>© 2026 Secure File Sharing. All rights reserved.</p>
+</div>
 
 </body>
 </html>

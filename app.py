@@ -4,7 +4,7 @@ import os
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = "super-secret-key"
+app.secret_key = "filelite-secret"
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -12,7 +12,27 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
-# ---------------- REGISTER ----------------
+@app.route("/", methods=["GET","POST"])
+def login():
+
+    if request.method == "POST":
+
+        username = request.form["username"]
+        password = request.form["password"]
+
+        user = supabase.table("users").select("*").eq("username",username).execute()
+
+        if user.data and check_password_hash(user.data[0]["password"],password):
+
+            session["user"] = username
+
+            return redirect("/dashboard")
+
+        return "Invalid credentials"
+
+    return render_template("login.html")
+
+
 @app.route("/register", methods=["GET","POST"])
 def register():
 
@@ -21,9 +41,9 @@ def register():
         username = request.form["username"]
         password = request.form["password"]
 
-        existing = supabase.table("users").select("*").eq("username",username).execute()
+        exists = supabase.table("users").select("*").eq("username",username).execute()
 
-        if existing.data:
+        if exists.data:
             return "Username already exists"
 
         hashed = generate_password_hash(password)
@@ -38,29 +58,6 @@ def register():
     return render_template("register.html")
 
 
-# ---------------- LOGIN ----------------
-@app.route("/", methods=["GET","POST"])
-def login():
-
-    if request.method == "POST":
-
-        username = request.form["username"]
-        password = request.form["password"]
-
-        result = supabase.table("users").select("*").eq("username",username).execute()
-
-        if result.data and check_password_hash(result.data[0]["password"],password):
-
-            session["user"] = username
-
-            return redirect("/dashboard")
-
-        return "Invalid credentials"
-
-    return render_template("login.html")
-
-
-# ---------------- DASHBOARD ----------------
 @app.route("/dashboard")
 def dashboard():
 
@@ -76,20 +73,15 @@ def dashboard():
     shared_files = []
 
     if shared_permissions.data:
-        for p in shared_permissions.data:
+        for f in shared_permissions.data:
             shared_files.append({
-                "filename":p["filename"],
-                "owner":p["owner"]
+                "filename":f["filename"],
+                "owner":f["owner"]
             })
 
     users = supabase.table("users").select("username").execute()
 
-    all_users = []
-
-    if users.data:
-        for u in users.data:
-            if u["username"] != user:
-                all_users.append(u["username"])
+    all_users = [u["username"] for u in users.data if u["username"] != user]
 
     return render_template(
         "index.html",
@@ -100,7 +92,6 @@ def dashboard():
     )
 
 
-# ---------------- UPLOAD ----------------
 @app.route("/upload", methods=["POST"])
 def upload():
 
@@ -129,7 +120,6 @@ def upload():
     return redirect("/dashboard")
 
 
-# ---------------- SHARE ----------------
 @app.route("/share/<filename>", methods=["POST"])
 def share(filename):
 
@@ -149,7 +139,6 @@ def share(filename):
     return redirect("/dashboard")
 
 
-# ---------------- DOWNLOAD ----------------
 @app.route("/download/<filename>")
 def download(filename):
 
@@ -175,13 +164,9 @@ def download(filename):
         f"{owner}/{filename}",60
     )
 
-    if not signed or "signedURL" not in signed:
-        return "File not found"
-
     return redirect(signed["signedURL"])
 
 
-# ---------------- DELETE ----------------
 @app.route("/delete/<filename>", methods=["POST"])
 def delete(filename):
 
@@ -199,7 +184,6 @@ def delete(filename):
     return redirect("/dashboard")
 
 
-# ---------------- LOGOUT ----------------
 @app.route("/logout")
 def logout():
 
@@ -208,21 +192,18 @@ def logout():
     return redirect("/")
 
 
-# ---------------- ABOUT ----------------
 @app.route("/about")
 def about():
 
-    return "<h2>Secure File Sharing Application</h2><p>Developed by Saide Karthik</p>"
+    return "<h2>FileLite</h2><p>Secure cloud file sharing system.</p>"
 
 
-# ---------------- HELP ----------------
 @app.route("/help")
 def help():
 
-    return "<h2>Help</h2><p>Upload files and share them securely with other users.</p>"
+    return "<h2>Help</h2><p>Upload and share files securely.</p>"
 
 
-# ---------------- RUN ----------------
 if __name__ == "__main__":
 
     port = int(os.environ.get("PORT",10000))
