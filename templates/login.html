@@ -1,16 +1,26 @@
-<h2>Login</h2>
-<form method="POST">
-    <input name="username" placeholder="Username" required><br><br>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+</head>
+<body>
 
-    <input type="password" id="password" name="password" required>
-    <button type="button" onclick="togglePassword()">Show</button><br><br>
+<h2>Login</h2>
+
+<form method="POST">
+    Username:<br>
+    <input type="text" name="username" required><br><br>
+
+    Password:<br>
+    <input type="password" name="password" required><br><br>
 
     <button type="submit">Login</button>
 </form>
 
-<script>
-function togglePassword() {
-    var x = document.getElementById("password");
-    x.type = x.type === "password" ? "text" : "password";
-}
-</script>
+<br>
+
+<p>Don't have an account?</p>
+<a href="/register">Register here</a>
+
+</body>
+</html>
