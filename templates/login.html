@@ -1,39 +1,27 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-
+<meta charset="UTF-8">
 <title>FileLite Login</title>
 
 <style>
 
 body{
 margin:0;
-font-family:Segoe UI, Arial;
-display:flex;
+font-family:Arial;
 height:100vh;
+display:flex;
 }
 
 .left{
 flex:1;
-background:linear-gradient(135deg,#6366f1,#4f46e5);
-color:white;
+background:linear-gradient(135deg,#5f6dfc,#7b5cff);
 display:flex;
-flex-direction:column;
 justify-content:center;
 align-items:center;
-padding:40px;
-}
-
-.left h1{
-font-size:40px;
-margin-bottom:10px;
-}
-
-.left p{
-font-size:18px;
-opacity:0.9;
+color:white;
 text-align:center;
-max-width:320px;
+padding:40px;
 }
 
 .right{
@@ -41,112 +29,102 @@ flex:1;
 display:flex;
 justify-content:center;
 align-items:center;
-background:#f8fafc;
+background:#f2f3f7;
 }
 
 .card{
 background:white;
-padding:40px;
+padding:35px;
+width:350px;
 border-radius:12px;
-width:340px;
-box-shadow:0 10px 30px rgba(0,0,0,0.1);
+box-shadow:0 5px 20px rgba(0,0,0,0.1);
 }
 
-.logo{
+.card h2{
 text-align:center;
-margin-bottom:25px;
-}
-
-.logo img{
-width:170px;
-display:block;
-margin:auto;
+margin-bottom:20px;
 }
 
 input{
 width:100%;
 padding:10px;
-margin-top:12px;
+margin-bottom:15px;
 border:1px solid #ccc;
 border-radius:6px;
 }
 
-.password-row{
+.options{
 display:flex;
 align-items:center;
-gap:6px;
-margin-top:8px;
-font-size:14px;
+gap:8px;
+margin-bottom:15px;
 }
 
 button{
 width:100%;
-padding:11px;
-margin-top:18px;
-background:#6366f1;
+padding:12px;
+background:#6b6dfc;
 border:none;
 color:white;
-cursor:pointer;
+font-size:16px;
 border-radius:6px;
-font-size:15px;
+cursor:pointer;
 }
 
 button:hover{
-background:#4f46e5;
+background:#5a5cff;
 }
 
-.bottom{
+.link{
 text-align:center;
-margin-top:18px;
-font-size:14px;
+margin-top:15px;
 }
 
-a{
-color:#6366f1;
-text-decoration:none;
-font-weight:500;
+.error{
+color:red;
+font-size:14px;
+margin-bottom:10px;
+text-align:center;
+}
+
+.success{
+color:green;
+font-size:14px;
+margin-bottom:10px;
+text-align:center;
 }
 
 </style>
-
-<script>
-function togglePassword(){
-var p=document.getElementById("password");
-p.type=p.type==="password"?"text":"password";
-}
-</script>
-
 </head>
 
 <body>
 
 <div class="left">
 
+<div>
 <h1>FileLite</h1>
-
-<p>
-Secure cloud file sharing platform.
-Upload, store and share your files safely from anywhere.
-</p>
-
+<p>Secure cloud file sharing platform.<br>
+Upload, store and share files safely.</p>
 </div>
 
+</div>
 
 <div class="right">
 
 <div class="card">
 
-<div class="logo">
-<img src="/static/filelite-logo.svg">
-</div>
+<h2>Login</h2>
 
-<form method="POST">
+<div class="error">{{ error }}</div>
+<div class="success">{{ message }}</div>
+
+<form action="/login" method="POST">
 
 <input type="text" name="username" placeholder="Username" required>
 
 <input type="password" id="password" name="password" placeholder="Password" required>
 
-<div class="password-row">
+<div class="options">
 <input type="checkbox" onclick="togglePassword()">
 <label>Show password</label>
 </div>
@@ -155,14 +133,22 @@ Upload, store and share your files safely from anywhere.
 
 </form>
 
-<div class="bottom">
-Don't have an account?
-<a href="/register">Create account</a>
+<div class="link">
+Don't have an account? <a href="/register">Create account</a>
 </div>
 
 </div>
 
 </div>
+
+<script>
+
+function togglePassword(){
+let p=document.getElementById("password");
+p.type=p.type==="password"?"text":"password";
+}
+
+</script>
 
 </body>
 </html>
