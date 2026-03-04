@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -186,9 +185,7 @@ button.confirm-delete{ background:#e74c3c; }
             <span class="file-owner">by {{ file.owner }}</span>
           </div>
           {% if file.shared_at %}
-          <div class="file-time">
-            Shared on {{ file.shared_at[:10] }} at {{ file.shared_at[11:16] }}
-          </div>
+          <div class="file-time">&#128336; Shared on {{ file.shared_at }}</div>
           {% endif %}
         </div>
         <div class="actions">

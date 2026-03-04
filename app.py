@@ -2,7 +2,19 @@ from flask import Flask, render_template, request, redirect, session, send_file
 from supabase import create_client
 import os
 import io
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def utc_to_ist(utc_str):
+    if not utc_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(utc_str.replace("Z", "+00:00"))
+        dt_ist = dt.astimezone(IST)
+        return dt_ist.strftime("%d %b %Y at %I:%M %p")
+    except:
+        return ""
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -63,7 +75,7 @@ def dashboard():
             shared_files.append({
                 "filename": f["filename"],
                 "owner": f["owner"],
-                "shared_at": f.get("created_at", "")
+                "shared_at": utc_to_ist(f.get("created_at", ""))
             })
 
     # All other users for share modal
@@ -128,7 +140,7 @@ def upload():
         shared_files = []
         if shared_permissions.data:
             for f in shared_permissions.data:
-                shared_files.append({"filename": f["filename"], "owner": f["owner"], "shared_at": f.get("created_at", "")})
+                shared_files.append({"filename": f["filename"], "owner": f["owner"], "shared_at": utc_to_ist(f.get("created_at", ""))})
         users = supabase.table("users").select("username").execute()
         all_users = [u["username"] for u in users.data if u["username"] != session["user"]]
         return render_template(
