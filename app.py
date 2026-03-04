@@ -1,6 +1,4 @@
-from fileinput import filename
-
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, render_template, request, redirect, session, url_for
 from supabase import create_client
 import os
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -14,45 +12,38 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
-@app.route("/", methods=["GET","POST"])
+@app.route("/", methods=["GET", "POST"])
 def login():
-
     if request.method == "POST":
-
         username = request.form["username"]
         password = request.form["password"]
 
-        user = supabase.table("users").select("*").eq("username",username).execute()
+        user = supabase.table("users").select("*").eq("username", username).execute()
 
-        if user.data and check_password_hash(user.data[0]["password"],password):
-
+        if user.data and check_password_hash(user.data[0]["password"], password):
             session["user"] = username
-
             return redirect("/dashboard")
 
-        return "Invalid credentials"
+        return render_template("login.html", error="Invalid username or password")
 
     return render_template("login.html")
 
 
-@app.route("/register", methods=["GET","POST"])
+@app.route("/register", methods=["GET", "POST"])
 def register():
-
     if request.method == "POST":
-
         username = request.form["username"]
         password = request.form["password"]
 
-        exists = supabase.table("users").select("*").eq("username",username).execute()
+        exists = supabase.table("users").select("*").eq("username", username).execute()
 
         if exists.data:
-            return "Username already exists"
+            return render_template("register.html", error="Username already exists")
 
         hashed = generate_password_hash(password)
-
         supabase.table("users").insert({
-            "username":username,
-            "password":hashed
+            "username": username,
+            "password": hashed
         }).execute()
 
         return redirect("/")
@@ -62,27 +53,27 @@ def register():
 
 @app.route("/dashboard")
 def dashboard():
-
     if "user" not in session:
         return redirect("/")
 
     user = session["user"]
 
-    own_files = supabase.table("files").select("*").eq("username",user).execute()
+    # Fetch user's own files
+    own_files = supabase.table("files").select("*").eq("username", user).execute()
 
-    shared_permissions = supabase.table("file_permissions").select("*").eq("shared_with",user).execute()
+    # Fetch files shared with this user
+    shared_permissions = supabase.table("file_permissions").select("*").eq("shared_with", user).execute()
 
     shared_files = []
-
     if shared_permissions.data:
         for f in shared_permissions.data:
             shared_files.append({
-                "filename":f["filename"],
-                "owner":f["owner"]
+                "filename": f["filename"],
+                "owner": f["owner"]
             })
 
+    # All other users (for share dropdown)
     users = supabase.table("users").select("username").execute()
-
     all_users = [u["username"] for u in users.data if u["username"] != user]
 
     return render_template(
@@ -96,120 +87,140 @@ def dashboard():
 
 @app.route("/upload", methods=["POST"])
 def upload():
-
     if "user" not in session:
         return redirect("/")
 
-    file = request.files["file"]
+    file = request.files.get("file")
 
-    if not file:
+    if not file or file.filename == "":
         return redirect("/dashboard")
 
     filename = file.filename
     file_bytes = file.read()
 
+    # Check if file already exists for this user
+    existing = supabase.table("files").select("*").eq("filename", filename).eq("username", session["user"]).execute()
+    if existing.data:
+        # Re-fetch dashboard data to show error
+        own_files = supabase.table("files").select("*").eq("username", session["user"]).execute()
+        shared_permissions = supabase.table("file_permissions").select("*").eq("shared_with", session["user"]).execute()
+        shared_files = []
+        if shared_permissions.data:
+            for f in shared_permissions.data:
+                shared_files.append({"filename": f["filename"], "owner": f["owner"]})
+        users = supabase.table("users").select("username").execute()
+        all_users = [u["username"] for u in users.data if u["username"] != session["user"]]
+        return render_template(
+            "index.html",
+            own_files=own_files.data if own_files.data else [],
+            shared_files=shared_files,
+            all_users=all_users,
+            user=session["user"],
+            error="A file with that name already exists!"
+        )
+
+    # Upload to Supabase storage
     supabase.storage.from_("encrypted-files").upload(
         f"{session['user']}/{filename}",
         file_bytes,
-        {"upsert":"true"}
+        {"upsert": "true"}
     )
 
+    # Save file record in DB
     supabase.table("files").insert({
-        "filename":filename,
-        "username":session["user"]
+        "filename": filename,
+        "username": session["user"]
     }).execute()
 
     return redirect("/dashboard")
 
-    filename = file.filename
 
-    existing = supabase.storage.from_("encrypted-files").list()
-    for f in existing:
-        if f["name"] == filename:
-            return render_template("upload.html", error="File with same name already exists")
-
-
-@app.route("/share/<filename>", methods=["POST"])
+@app.route("/share/<path:filename>", methods=["POST"])
 def share(filename):
-
     if "user" not in session:
         return redirect("/")
 
     selected_users = request.form.getlist("users")
 
     for u in selected_users:
+        # Avoid duplicate share entries
+        existing = supabase.table("file_permissions").select("*")\
+            .eq("filename", filename)\
+            .eq("owner", session["user"])\
+            .eq("shared_with", u).execute()
 
-        supabase.table("file_permissions").insert({
-            "filename":filename,
-            "owner":session["user"],
-            "shared_with":u
-        }).execute()
+        if not existing.data:
+            supabase.table("file_permissions").insert({
+                "filename": filename,
+                "owner": session["user"],
+                "shared_with": u
+            }).execute()
 
     return redirect("/dashboard")
 
 
-@app.route("/download/<filename>")
+@app.route("/download/<path:filename>")
 def download(filename):
-
     if "user" not in session:
         return redirect("/")
 
     user = session["user"]
 
-    own = supabase.table("files").select("*").eq("filename",filename).eq("username",user).execute()
+    # Check if user owns the file
+    own = supabase.table("files").select("*").eq("filename", filename).eq("username", user).execute()
 
     if own.data:
         owner = user
     else:
-
-        shared = supabase.table("file_permissions").select("*").eq("filename",filename).eq("shared_with",user).execute()
+        # Check if file was shared with user
+        shared = supabase.table("file_permissions").select("*")\
+            .eq("filename", filename)\
+            .eq("shared_with", user).execute()
 
         if not shared.data:
-            return "Unauthorized"
+            return "Unauthorized", 403
 
         owner = shared.data[0]["owner"]
 
     signed = supabase.storage.from_("encrypted-files").create_signed_url(
-        f"{owner}/{filename}",60
+        f"{owner}/{filename}", 60
     )
 
     return redirect(signed["signedURL"])
 
 
-@app.route("/delete/<filename>", methods=["POST"])
+@app.route("/delete/<path:filename>", methods=["POST"])
 def delete(filename):
-
     if "user" not in session:
         return redirect("/")
 
     user = session["user"]
 
+    # Remove from storage
     supabase.storage.from_("encrypted-files").remove([f"{user}/{filename}"])
 
-    supabase.table("files").delete().eq("filename",filename).eq("username",user).execute()
+    # Remove from files table
+    supabase.table("files").delete().eq("filename", filename).eq("username", user).execute()
 
-    supabase.table("file_permissions").delete().eq("filename",filename).eq("owner",user).execute()
+    # Remove all shared permissions for this file
+    supabase.table("file_permissions").delete().eq("filename", filename).eq("owner", user).execute()
 
     return redirect("/dashboard")
 
 
 @app.route("/logout")
 def logout():
-
     session.clear()
-
     return redirect("/")
 
 
 @app.route("/about")
 def about():
-
     return "<h2>FileLite</h2><p>Secure cloud file sharing system.</p>"
 
 
 @app.route("/help")
 def help():
-
     return "<h2>Help</h2><p>Upload and share files securely.</p>"
 
 
