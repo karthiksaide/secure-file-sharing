@@ -1,228 +1,151 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-
+<meta charset="UTF-8">
 <title>FileLite Dashboard</title>
 
 <style>
 
 body{
 margin:0;
-font-family:Segoe UI, Arial;
-background:#f1f5f9;
+font-family:Arial;
+background:#f2f3f7;
 }
 
-/* Sidebar */
-
-.sidebar{
-width:220px;
-height:100vh;
-background:#1e293b;
+.header{
+background:#6b6dfc;
 color:white;
-position:fixed;
-padding:25px;
-}
-
-.sidebar img{
-width:140px;
-margin-bottom:25px;
-}
-
-.sidebar a{
-display:block;
-color:white;
-text-decoration:none;
-margin:15px 0;
-font-size:15px;
-}
-
-.sidebar a:hover{
-color:#a5b4fc;
-}
-
-
-/* Main area */
-
-.main{
-margin-left:240px;
-padding:35px;
-}
-
-/* Header */
-
-.topbar{
+padding:15px;
 display:flex;
 justify-content:space-between;
 align-items:center;
-margin-bottom:25px;
 }
 
-.search{
-padding:10px;
-width:240px;
-border:1px solid #ccc;
-border-radius:6px;
+.container{
+padding:30px;
+max-width:900px;
+margin:auto;
 }
 
-
-/* Cards */
-
-.card{
+.upload-box{
 background:white;
-padding:22px;
+padding:25px;
 border-radius:10px;
-box-shadow:0 8px 25px rgba(0,0,0,0.05);
-margin-bottom:25px;
+box-shadow:0 4px 15px rgba(0,0,0,0.1);
+margin-bottom:30px;
 }
 
-
-/* File list */
-
-.file{
-padding:12px;
-border-bottom:1px solid #eee;
-}
-
-.file:last-child{
-border:none;
-}
-
-.file b{
-font-size:15px;
-}
-
-.file small{
-color:#64748b;
-}
-
-.actions{
-margin-top:6px;
+input[type=file]{
+margin-bottom:10px;
 }
 
 button{
-padding:6px 12px;
-margin-right:6px;
+padding:10px 18px;
 border:none;
-background:#6366f1;
+background:#6b6dfc;
 color:white;
-border-radius:5px;
+border-radius:6px;
 cursor:pointer;
 }
 
 button:hover{
-background:#4f46e5;
+background:#5a5cff;
 }
 
-select{
-padding:5px;
+.warning{
+color:red;
+font-size:14px;
+}
+
+.preview img{
+max-width:200px;
+margin-top:10px;
+border-radius:6px;
+}
+
+.file-list{
+background:white;
+padding:25px;
+border-radius:10px;
+box-shadow:0 4px 15px rgba(0,0,0,0.1);
+}
+
+.file{
+display:flex;
+justify-content:space-between;
+align-items:center;
+border-bottom:1px solid #eee;
+padding:10px 0;
+}
+
+.file:last-child{
+border-bottom:none;
+}
+
+.actions a{
+margin-left:10px;
+text-decoration:none;
+color:white;
+background:#6b6dfc;
+padding:6px 10px;
+border-radius:5px;
+}
+
+.actions a.delete{
+background:#e74c3c;
 }
 
 </style>
-
-<script>
-
-function searchFiles(){
-
-let input=document.getElementById("search").value.toLowerCase();
-let rows=document.querySelectorAll(".file");
-
-rows.forEach(row=>{
-row.style.display=row.innerText.toLowerCase().includes(input)?"":"none";
-})
-
-}
-
-</script>
-
 </head>
 
 <body>
 
-<div class="sidebar">
-
-<img src="/static/filelite-logo.svg">
-
-<a href="/dashboard">Dashboard</a>
-<a href="/help">Help</a>
-<a href="/about">About</a>
-<a href="/logout">Logout</a>
-
+<div class="header">
+<h2>FileLite Dashboard</h2>
+<a href="/logout" style="color:white;text-decoration:none;">Logout</a>
 </div>
 
+<div class="container">
 
-
-<div class="main">
-
-<div class="topbar">
-
-<h2>Welcome {{user}}</h2>
-
-<input
-id="search"
-class="search"
-placeholder="Search files..."
-onkeyup="searchFiles()"
->
-
-</div>
-
-
-<div class="card">
+<div class="upload-box">
 
 <h3>Upload File</h3>
 
-<form action="/upload" method="POST" enctype="multipart/form-data">
+{% if error %}
+<p class="warning">{{ error }}</p>
+{% endif %}
 
-<input type="file" name="file">
+<p id="sizeWarning" class="warning"></p>
 
-<button>Upload</button>
+<form action="/upload" method="POST" enctype="multipart/form-data" onsubmit="return validateFile()">
+
+<input type="file" id="fileInput" name="file" required onchange="previewFile()">
+
+<div id="previewArea" class="preview"></div>
+
+<br>
+
+<button type="submit">Upload</button>
 
 </form>
 
 </div>
 
-
-
-<div class="card">
+<div class="file-list">
 
 <h3>Your Files</h3>
 
-{% for file in own_files %}
+{% for file in files %}
 
 <div class="file">
 
-<b>{{file.filename}}</b>
-
-<br>
-
-<small>Uploaded: {{file.created_at}}</small>
+<span>{{ file.name }}</span>
 
 <div class="actions">
 
-<a href="/download/{{file.filename}}">
-<button>Download</button>
-</a>
+<a href="/download/{{ file.name }}">Download</a>
 
-<form action="/delete/{{file.filename}}" method="POST" style="display:inline">
-<button>Delete</button>
-</form>
-
-<form action="/share/{{file.filename}}" method="POST" style="display:inline">
-
-<select name="users" multiple>
-
-{% for u in all_users %}
-
-<option value="{{u}}">{{u}}</option>
-
-{% endfor %}
-
-</select>
-
-<button>Share</button>
-
-</form>
+<a class="delete" href="/delete/{{ file.name }}">Delete</a>
 
 </div>
 
@@ -232,38 +155,58 @@ onkeyup="searchFiles()"
 
 </div>
 
-
-
-<div class="card">
-
-<h3>Files Shared With You</h3>
-
-{% for f in shared_files %}
-
-<div class="file">
-
-<b>{{f.filename}}</b>
-
-<br>
-
-<small>Owner: {{f.owner}}</small>
-
-<div class="actions">
-
-<a href="/download/{{f.filename}}">
-<button>Download</button>
-</a>
-
 </div>
 
-</div>
+<script>
 
-{% endfor %}
+function validateFile(){
 
-</div>
+let fileInput=document.getElementById("fileInput");
+let sizeWarning=document.getElementById("sizeWarning");
 
+let file=fileInput.files[0];
 
-</div>
+let maxSize=50*1024*1024;
+
+if(file.size>maxSize){
+
+sizeWarning.innerHTML="File exceeds 50MB limit!";
+return false;
+
+}
+
+sizeWarning.innerHTML="";
+return true;
+
+}
+
+function previewFile(){
+
+let file=document.getElementById("fileInput").files[0];
+let previewArea=document.getElementById("previewArea");
+
+previewArea.innerHTML="";
+
+if(!file) return;
+
+let type=file.type;
+
+if(type.startsWith("image")){
+
+let img=document.createElement("img");
+img.src=URL.createObjectURL(file);
+
+previewArea.appendChild(img);
+
+}else{
+
+previewArea.innerHTML="Selected file: "+file.name;
+
+}
+
+}
+
+</script>
 
 </body>
 </html>

@@ -1,3 +1,5 @@
+from fileinput import filename
+
 from flask import Flask, render_template, request, redirect, session
 from supabase import create_client
 import os
@@ -118,6 +120,13 @@ def upload():
     }).execute()
 
     return redirect("/dashboard")
+
+    filename = file.filename
+
+    existing = supabase.storage.from_("encrypted-files").list()
+    for f in existing:
+        if f["name"] == filename:
+            return render_template("upload.html", error="File with same name already exists")
 
 
 @app.route("/share/<filename>", methods=["POST"])
