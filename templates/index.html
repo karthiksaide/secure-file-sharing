@@ -34,6 +34,7 @@ button:hover{ background:#5a5cff; }
 button.cancel{ background:#ccc; color:#333; }
 button.delete-btn{ background:#e74c3c; }
 button.share-btn{ background:#27ae60; }
+button.download-btn{ background:#6b6dfc; }
 button.confirm-delete{ background:#e74c3c; }
 .warning{ color:red; font-size:14px; margin:0 0 10px; }
 .preview img{ max-width:200px; margin-top:10px; border-radius:6px; }
@@ -51,12 +52,6 @@ button.confirm-delete{ background:#e74c3c; }
 .file-owner{ font-size:12px; color:#999; }
 .file-time{ font-size:11px; color:#bbb; margin-left:26px; }
 .actions{ display:flex; gap:8px; flex-shrink:0; flex-wrap:wrap; }
-.actions a{
-  text-decoration:none; color:white;
-  background:#6b6dfc; padding:6px 12px;
-  border-radius:5px; font-size:13px;
-}
-.actions a:hover{ opacity:0.85; }
 .actions button{ padding:6px 12px; font-size:13px; }
 .empty-state{ text-align:center; padding:30px 20px; color:#bbb; }
 .empty-state p{ font-size:15px; margin:10px 0 0; }
@@ -91,6 +86,7 @@ button.confirm-delete{ background:#e74c3c; }
 }
 .share-users label:hover{ color:#6b6dfc; }
 .no-users{ color:#aaa; font-size:14px; text-align:center; padding:10px; }
+#uploadStatus{ font-size:14px; color:#6b6dfc; margin-top:8px; display:none; }
 </style>
 </head>
 <body>
@@ -127,13 +123,11 @@ button.confirm-delete{ background:#e74c3c; }
     <p class="warning">&#9888; {{ error }}</p>
     {% endif %}
     <p id="sizeWarning" class="warning"></p>
-    <form action="/upload" method="POST" enctype="multipart/form-data" onsubmit="return validateFiles()">
-      <!-- multiple attribute allows selecting many files at once -->
-      <input type="file" id="fileInput" name="file" multiple required onchange="previewFiles()">
-      <div id="previewArea" class="preview"></div>
-      <br>
-      <button type="submit">&#11014; Upload</button>
-    </form>
+    <input type="file" id="fileInput" multiple onchange="previewFiles()">
+    <div id="previewArea" class="preview"></div>
+    <br>
+    <button type="button" onclick="handleEncryptedUpload()">&#11014; Upload</button>
+    <div id="uploadStatus">&#128274; Encrypting and uploading...</div>
   </div>
 
   <!-- Your Files -->
@@ -150,7 +144,7 @@ button.confirm-delete{ background:#e74c3c; }
           {{ file.filename }}
         </div>
         <div class="actions">
-          <a href="/download/{{ file.filename }}">&#11015; Download</a>
+          <button class="download-btn" onclick="handleDecryptedDownload('{{ file.filename }}', '{{ user }}')">&#11015; Download</button>
           <button class="share-btn" onclick="openShareModal('{{ file.filename }}')">&#128279; Share</button>
           <button class="delete-btn" onclick="openDeleteConfirm('{{ file.filename }}')">&#128465; Delete</button>
         </div>
@@ -189,7 +183,7 @@ button.confirm-delete{ background:#e74c3c; }
           {% endif %}
         </div>
         <div class="actions">
-          <a href="/download/{{ file.filename }}">&#11015; Download</a>
+          <button class="download-btn" onclick="handleDecryptedDownload('{{ file.filename }}', '{{ file.owner }}')">&#11015; Download</button>
         </div>
       </div>
       {% endfor %}
@@ -207,18 +201,16 @@ button.confirm-delete{ background:#e74c3c; }
 
 </div>
 
-<!-- SHARE MODAL (no copy link) -->
+<!-- SHARE MODAL -->
 <div class="modal-overlay" id="shareModal">
   <div class="modal">
     <h3>&#128279; Share File</h3>
     <p style="margin:0 0 12px;color:#555;font-size:14px;">Select users to share with:</p>
-    <form id="shareForm" method="POST">
-      <div class="share-users" id="shareUserList"></div>
-      <div class="modal-actions">
-        <button type="button" class="cancel" onclick="closeShareModal()">Cancel</button>
-        <button type="submit">Share</button>
-      </div>
-    </form>
+    <div class="share-users" id="shareUserList"></div>
+    <div class="modal-actions">
+      <button type="button" class="cancel" onclick="closeShareModal()">Cancel</button>
+      <button type="button" onclick="handleShare()">Share</button>
+    </div>
   </div>
 </div>
 
@@ -242,55 +234,124 @@ button.confirm-delete{ background:#e74c3c; }
 
 <script>
 const ALL_USERS = {{ all_users | tojson }};
+const CURRENT_USER = "{{ user }}";
 
-// ── Multiple file validation ──
-function validateFiles(){
+// ── Helpers ──
+function b64ToBytes(b64){
+  return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+}
+function bytesToB64(buf){
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+
+// ── Encrypt & Upload ──
+async function handleEncryptedUpload() {
   const files = document.getElementById("fileInput").files;
   const warn = document.getElementById("sizeWarning");
-  if(!files.length) return false;
-  for(let i = 0; i < files.length; i++){
-    if(files[i].size > 50*1024*1024){
+  const status = document.getElementById("uploadStatus");
+
+  if (!files.length) { warn.textContent = "Please select a file."; return; }
+
+  for (let i = 0; i < files.length; i++) {
+    if (files[i].size > 50 * 1024 * 1024) {
       warn.textContent = `"${files[i].name}" exceeds 50MB limit!`;
-      return false;
+      return;
     }
   }
   warn.textContent = "";
-  return true;
+  status.style.display = "block";
+
+  // Get own public key from server
+  const myPubKeyResp = await fetch(`/get_public_key/${CURRENT_USER}`);
+  const myPubKeyB64 = await myPubKeyResp.text();
+  const myPubKey = await window.crypto.subtle.importKey(
+    "spki", b64ToBytes(myPubKeyB64),
+    { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]
+  );
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+
+    // Generate AES-256 key + random IV
+    const aesKey = await window.crypto.subtle.generateKey(
+      { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]
+    );
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+
+    // Encrypt file bytes
+    const fileBuffer = await file.arrayBuffer();
+    const encryptedFile = await window.crypto.subtle.encrypt(
+      { name: "AES-GCM", iv }, aesKey, fileBuffer
+    );
+
+    // Encrypt AES key with own RSA public key
+    const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
+    const encryptedKey = await window.crypto.subtle.encrypt(
+      { name: "RSA-OAEP" }, myPubKey, rawAesKey
+    );
+
+    // POST to server
+    const formData = new FormData();
+    formData.append("file", new Blob([encryptedFile]), file.name);
+    formData.append("encrypted_key", bytesToB64(encryptedKey));
+    formData.append("iv", bytesToB64(iv));
+    await fetch("/upload", { method: "POST", body: formData });
+  }
+
+  status.style.display = "none";
+  window.location.href = "/dashboard";
 }
 
-// ── Multiple file preview ──
-function previewFiles(){
-  const files = document.getElementById("fileInput").files;
-  const area = document.getElementById("previewArea");
-  area.innerHTML = "";
-  if(!files.length) return;
+// ── Decrypt & Download ──
+async function handleDecryptedDownload(filename, owner) {
+  const resp = await fetch(`/download_encrypted/${encodeURIComponent(filename)}?owner=${encodeURIComponent(owner)}`);
+  if (!resp.ok) { alert("Download failed or unauthorized."); return; }
 
-  // Show count if more than 1
-  if(files.length > 1){
-    area.innerHTML = `<p style="margin:8px 0;color:#555;">${files.length} files selected:</p>`;
-    for(let i = 0; i < files.length; i++){
-      area.innerHTML += `<div style="font-size:13px;color:#777;">&#128196; ${files[i].name}</div>`;
-    }
+  const data = await resp.json();
+
+  // Get private key from localStorage
+  const privKeyB64 = localStorage.getItem(`privkey_${CURRENT_USER}`);
+  if (!privKeyB64) {
+    alert("Private key not found!\n\nThis usually means you registered on a different device or browser.\nPlease re-register or export your key.");
     return;
   }
 
-  // Single file — show image preview if image
-  const file = files[0];
-  if(file.type.startsWith("image")){
-    const img = document.createElement("img");
-    img.src = URL.createObjectURL(file);
-    area.appendChild(img);
-  } else {
-    area.innerHTML = `Selected: <strong>${file.name}</strong>`;
-  }
+  const privateKey = await window.crypto.subtle.importKey(
+    "pkcs8", b64ToBytes(privKeyB64),
+    { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]
+  );
+
+  // Decrypt AES key
+  const aesKeyRaw = await window.crypto.subtle.decrypt(
+    { name: "RSA-OAEP" }, privateKey, b64ToBytes(data.encrypted_key)
+  );
+  const aesKey = await window.crypto.subtle.importKey(
+    "raw", aesKeyRaw, { name: "AES-GCM" }, false, ["decrypt"]
+  );
+
+  // Decrypt file
+  const decryptedBuffer = await window.crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: b64ToBytes(data.iv) }, aesKey, b64ToBytes(data.file_b64)
+  );
+
+  // Trigger browser download
+  const blob = new Blob([decryptedBuffer]);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── Share Modal ──
-function openShareModal(filename){
-  document.getElementById("shareForm").action = "/share/" + encodeURIComponent(filename);
+let currentShareFilename = "";
+
+function openShareModal(filename) {
+  currentShareFilename = filename;
   const list = document.getElementById("shareUserList");
   list.innerHTML = "";
-  if(ALL_USERS.length === 0){
+  if (ALL_USERS.length === 0) {
     list.innerHTML = '<div class="no-users">No other users available</div>';
   } else {
     ALL_USERS.forEach(u => {
@@ -302,36 +363,108 @@ function openShareModal(filename){
   document.getElementById("shareModal").classList.add("active");
 }
 
-function closeShareModal(){
+function closeShareModal() {
   document.getElementById("shareModal").classList.remove("active");
+  currentShareFilename = "";
+}
+
+async function handleShare() {
+  const checked = [...document.querySelectorAll('#shareUserList input:checked')].map(i => i.value);
+  if (!checked.length) { closeShareModal(); return; }
+
+  // Get own private key
+  const privKeyB64 = localStorage.getItem(`privkey_${CURRENT_USER}`);
+  if (!privKeyB64) { alert("Private key not found!"); return; }
+
+  const privateKey = await window.crypto.subtle.importKey(
+    "pkcs8", b64ToBytes(privKeyB64),
+    { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]
+  );
+
+  // Get this file's encrypted AES key from server
+  const metaResp = await fetch(`/get_file_key/${encodeURIComponent(currentShareFilename)}`);
+  const meta = await metaResp.json();
+
+  // Decrypt the AES key with own private key
+  const aesKeyRaw = await window.crypto.subtle.decrypt(
+    { name: "RSA-OAEP" }, privateKey, b64ToBytes(meta.encrypted_key)
+  );
+
+  // Re-encrypt AES key for each recipient's public key
+  const sharePayloads = [];
+  for (const u of checked) {
+    const pubKeyResp = await fetch(`/get_public_key/${u}`);
+    const pubKeyB64 = await pubKeyResp.text();
+    const recipientPubKey = await window.crypto.subtle.importKey(
+      "spki", b64ToBytes(pubKeyB64),
+      { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]
+    );
+    const encryptedKeyForRecipient = await window.crypto.subtle.encrypt(
+      { name: "RSA-OAEP" }, recipientPubKey, aesKeyRaw
+    );
+    sharePayloads.push({ user: u, encrypted_key: bytesToB64(encryptedKeyForRecipient) });
+  }
+
+  await fetch(`/share/${encodeURIComponent(currentShareFilename)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ users: sharePayloads, iv: meta.iv })
+  });
+
+  closeShareModal();
+  window.location.href = "/dashboard";
 }
 
 // ── Delete Modal ──
 let pendingDeleteFile = "";
 
-function openDeleteConfirm(filename){
+function openDeleteConfirm(filename) {
   pendingDeleteFile = filename;
   document.getElementById("deleteFileName").textContent = filename;
   document.getElementById("deleteModal").classList.add("active");
 }
 
-function closeDeleteConfirm(){
+function closeDeleteConfirm() {
   document.getElementById("deleteModal").classList.remove("active");
   pendingDeleteFile = "";
 }
 
-function confirmDelete(){
-  if(!pendingDeleteFile) return;
+function confirmDelete() {
+  if (!pendingDeleteFile) return;
   const form = document.getElementById("deleteForm");
   form.action = "/delete/" + encodeURIComponent(pendingDeleteFile);
   form.submit();
 }
 
+// ── File Preview ──
+function previewFiles() {
+  const files = document.getElementById("fileInput").files;
+  const area = document.getElementById("previewArea");
+  area.innerHTML = "";
+  if (!files.length) return;
+  if (files.length > 1) {
+    area.innerHTML = `<p style="margin:8px 0;color:#555;">${files.length} files selected:</p>`;
+    for (let i = 0; i < files.length; i++) {
+      area.innerHTML += `<div style="font-size:13px;color:#777;">&#128196; ${files[i].name}</div>`;
+    }
+    return;
+  }
+  const file = files[0];
+  if (file.type.startsWith("image")) {
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(file);
+    area.appendChild(img);
+  } else {
+    area.innerHTML = `Selected: <strong>${file.name}</strong>`;
+  }
+}
+
+// ── Close modals on backdrop click ──
 document.getElementById("shareModal").addEventListener("click", e => {
-  if(e.target === e.currentTarget) closeShareModal();
+  if (e.target === e.currentTarget) closeShareModal();
 });
 document.getElementById("deleteModal").addEventListener("click", e => {
-  if(e.target === e.currentTarget) closeDeleteConfirm();
+  if (e.target === e.currentTarget) closeDeleteConfirm();
 });
 </script>
 

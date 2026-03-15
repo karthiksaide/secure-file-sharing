@@ -17,65 +17,50 @@ input.error-input{border-color:#e74c3c;}
 button{width:100%;padding:12px;background:#6b6dfc;border:none;color:white;font-size:16px;border-radius:6px;cursor:pointer;}
 button:hover{background:#5a5cff;}
 .link{text-align:center;margin-top:15px;}
-.error-box{
-  background:#fff0f0;
-  border:1px solid #f5c6c6;
-  color:#c0392b;
-  padding:10px 14px;
-  border-radius:6px;
-  font-size:14px;
-  margin-bottom:15px;
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
+.error-box{background:#fff0f0;border:1px solid #f5c6c6;color:#c0392b;padding:10px 14px;border-radius:6px;font-size:14px;margin-bottom:15px;display:flex;align-items:center;gap:8px;}
 </style>
 </head>
 <body>
+
 <div class="left-panel">
-<div>
-<svg width="120" height="110" viewBox="0 0 120 110" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <ellipse cx="60" cy="55" rx="42" ry="30" fill="white" opacity="0.95"/>
-  <ellipse cx="38" cy="62" rx="22" ry="20" fill="white" opacity="0.95"/>
-  <ellipse cx="82" cy="62" rx="22" ry="20" fill="white" opacity="0.95"/>
-  <rect x="16" y="62" width="88" height="22" fill="white" opacity="0.95"/>
-  <rect x="42" y="32" width="36" height="48" rx="3" fill="#29b6f6"/>
-  <polygon points="66,32 78,44 66,44" fill="#0288d1"/>
-  <polygon points="66,32 78,32 78,44" fill="#4fc3f7"/>
-  <rect x="47" y="52" width="22" height="3" rx="1.5" fill="white" opacity="0.85"/>
-  <rect x="47" y="59" width="22" height="3" rx="1.5" fill="white" opacity="0.85"/>
-  <rect x="47" y="66" width="15" height="3" rx="1.5" fill="white" opacity="0.85"/>
-</svg>
-<h1>FileLite</h1>
-<p>Create an account and start<br>sharing files securely.</p>
-</div>
+  <div>
+    <svg width="120" height="110" viewBox="0 0 120 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="60" cy="55" rx="42" ry="30" fill="white" opacity="0.95"/>
+      <ellipse cx="38" cy="62" rx="22" ry="20" fill="white" opacity="0.95"/>
+      <ellipse cx="82" cy="62" rx="22" ry="20" fill="white" opacity="0.95"/>
+      <rect x="16" y="62" width="88" height="22" fill="white" opacity="0.95"/>
+      <rect x="42" y="32" width="36" height="48" rx="3" fill="#29b6f6"/>
+      <polygon points="66,32 78,44 66,44" fill="#0288d1"/>
+      <polygon points="66,32 78,32 78,44" fill="#4fc3f7"/>
+      <rect x="47" y="52" width="22" height="3" rx="1.5" fill="white" opacity="0.85"/>
+      <rect x="47" y="59" width="22" height="3" rx="1.5" fill="white" opacity="0.85"/>
+      <rect x="47" y="66" width="15" height="3" rx="1.5" fill="white" opacity="0.85"/>
+    </svg>
+    <h1>FileLite</h1>
+    <p>Create an account and start<br>sharing files securely.</p>
+  </div>
 </div>
 
 <div class="right-panel">
-<div class="card">
-<h2>Create Account</h2>
-
-{% if error %}
-<div class="error-box">
-  &#9888; {{ error }}
-</div>
-{% endif %}
-
-<form method="POST">
-<input type="text" name="username" placeholder="Username" required
-  class="{{ 'error-input' if error else '' }}"
-  value="{{ request.form.get('username', '') }}">
-
-<input type="password" id="password" name="password" placeholder="Password" required>
-
-<div class="show-pass">
-  <label for="showpass">Show password</label>
-  <input type="checkbox" id="showpass" onclick="togglePassword()">
-</div>
-<button type="submit">Register</button>
-</form>
-<div class="link">Already have an account? <a href="/">Login</a></div>
-</div>
+  <div class="card">
+    <h2>Create Account</h2>
+    {% if error %}
+    <div class="error-box">&#9888; {{ error }}</div>
+    {% endif %}
+    <form id="registerForm">
+      <input type="text" id="username" name="username" placeholder="Username" required
+        class="{{ 'error-input' if error else '' }}"
+        value="{{ request.form.get('username', '') }}">
+      <input type="password" id="password" name="password" placeholder="Password" required>
+      <div class="show-pass">
+        <label for="showpass">Show password</label>
+        <input type="checkbox" id="showpass" onclick="togglePassword()">
+      </div>
+      <input type="hidden" id="public_key" name="public_key">
+      <button type="button" onclick="handleRegister()">Register</button>
+    </form>
+    <div class="link">Already have an account? <a href="/">Login</a></div>
+  </div>
 </div>
 
 <script>
@@ -83,6 +68,47 @@ function togglePassword(){
   let p = document.getElementById("password");
   p.type = p.type === "password" ? "text" : "password";
 }
+
+async function handleRegister() {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
+  if (!username || !password) return;
+
+  // Generate RSA-OAEP key pair
+  const keyPair = await window.crypto.subtle.generateKey(
+    { name: "RSA-OAEP", modulusLength: 2048, publicExponent: new Uint8Array([1,0,1]), hash: "SHA-256" },
+    true, ["encrypt", "decrypt"]
+  );
+
+  // Export both keys
+  const pubKeyBuffer = await window.crypto.subtle.exportKey("spki", keyPair.publicKey);
+  const privKeyBuffer = await window.crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+
+  // Store private key in localStorage — never sent to server
+  const privKeyB64 = btoa(String.fromCharCode(...new Uint8Array(privKeyBuffer)));
+  localStorage.setItem(`privkey_${username}`, privKeyB64);
+
+  // Set public key in hidden field
+  const pubKeyB64 = btoa(String.fromCharCode(...new Uint8Array(pubKeyBuffer)));
+  document.getElementById("public_key").value = pubKeyB64;
+
+  // Build and submit a real POST form
+  const hiddenForm = document.createElement("form");
+  hiddenForm.method = "POST";
+  hiddenForm.action = "/register";
+
+  [["username", username], ["password", password], ["public_key", pubKeyB64]].forEach(([name, value]) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value;
+    hiddenForm.appendChild(input);
+  });
+
+  document.body.appendChild(hiddenForm);
+  hiddenForm.submit();
+}
 </script>
+
 </body>
 </html>
