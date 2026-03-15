@@ -3,7 +3,8 @@
 <head>
 <title>FileLite Login</title>
 <style>
-body{margin:0;font-family:Arial;display:flex;height:100vh;}
+body{margin:0;font-family:Arial;display:flex;flex-direction:column;min-height:100vh;}
+.main{display:flex;flex:1;}
 .left-panel{flex:1;background:linear-gradient(135deg,#5f6dfc,#7b5cff);display:flex;justify-content:center;align-items:center;color:white;text-align:center;padding:60px;}
 .left-panel h1{font-size:52px;margin-bottom:20px;margin-top:10px;}
 .left-panel p{font-size:20px;line-height:1.6;}
@@ -18,10 +19,13 @@ button{width:100%;padding:12px;background:#6b6dfc;border:none;color:white;font-s
 button:hover{background:#5a5cff;}
 .link{text-align:center;margin-top:15px;}
 .error-box{background:#fff0f0;border:1px solid #f5c6c6;color:#c0392b;padding:10px 14px;border-radius:6px;font-size:14px;margin-bottom:15px;display:flex;align-items:center;gap:8px;}
+.footer{background:#f8f8f8;border-top:1px solid #eee;padding:12px 30px;display:flex;justify-content:center;gap:30px;}
+.footer a{color:#6b6dfc;text-decoration:none;font-size:14px;}
+.footer a:hover{text-decoration:underline;}
 </style>
 </head>
 <body>
-
+<div class="main">
 <div class="left-panel">
   <div>
     <svg width="120" height="110" viewBox="0 0 120 110" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -40,7 +44,6 @@ button:hover{background:#5a5cff;}
     <p>Secure cloud file sharing platform.<br>Upload, store and share files safely.</p>
   </div>
 </div>
-
 <div class="right-panel">
   <div class="card">
     <h2>Login</h2>
@@ -62,13 +65,18 @@ button:hover{background:#5a5cff;}
     <div class="link">Don't have an account? <a href="/register">Create account</a></div>
   </div>
 </div>
-
+</div>
+<div class="footer">
+  <a href="/about">&#8505; About</a>
+  <a href="/about#help">&#10067; Help</a>
+  <a href="/about#faq">&#128172; FAQ</a>
+  <a href="mailto:karthiksaide19@gmail.com">&#9993; Contact Us</a>
+</div>
 <script>
 function togglePassword(){
   let p = document.getElementById("password");
   p.type = p.type === "password" ? "text" : "password";
 }
 </script>
-
 </body>
 </html>

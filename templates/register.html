@@ -3,7 +3,8 @@
 <head>
 <title>FileLite Register</title>
 <style>
-body{margin:0;font-family:Arial;display:flex;height:100vh;}
+body{margin:0;font-family:Arial;display:flex;flex-direction:column;min-height:100vh;}
+.main{display:flex;flex:1;}
 .left-panel{flex:1;background:linear-gradient(135deg,#5f6dfc,#7b5cff);display:flex;justify-content:center;align-items:center;color:white;text-align:center;padding:60px;}
 .left-panel h1{font-size:52px;margin-bottom:20px;margin-top:10px;}
 .left-panel p{font-size:20px;line-height:1.6;}
@@ -18,10 +19,13 @@ button{width:100%;padding:12px;background:#6b6dfc;border:none;color:white;font-s
 button:hover{background:#5a5cff;}
 .link{text-align:center;margin-top:15px;}
 .error-box{background:#fff0f0;border:1px solid #f5c6c6;color:#c0392b;padding:10px 14px;border-radius:6px;font-size:14px;margin-bottom:15px;display:flex;align-items:center;gap:8px;}
+.footer{background:#f8f8f8;border-top:1px solid #eee;padding:12px 30px;display:flex;justify-content:center;gap:30px;}
+.footer a{color:#6b6dfc;text-decoration:none;font-size:14px;}
+.footer a:hover{text-decoration:underline;}
 </style>
 </head>
 <body>
-
+<div class="main">
 <div class="left-panel">
   <div>
     <svg width="120" height="110" viewBox="0 0 120 110" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -40,7 +44,6 @@ button:hover{background:#5a5cff;}
     <p>Create an account and start<br>sharing files securely.</p>
   </div>
 </div>
-
 <div class="right-panel">
   <div class="card">
     <h2>Create Account</h2>
@@ -62,53 +65,43 @@ button:hover{background:#5a5cff;}
     <div class="link">Already have an account? <a href="/">Login</a></div>
   </div>
 </div>
-
+</div>
+<div class="footer">
+  <a href="/about">&#8505; About</a>
+  <a href="/about#help">&#10067; Help</a>
+  <a href="/about#faq">&#128172; FAQ</a>
+  <a href="mailto:karthiksaide19@gmail.com">&#9993; Contact Us</a>
+</div>
 <script>
 function togglePassword(){
   let p = document.getElementById("password");
   p.type = p.type === "password" ? "text" : "password";
 }
-
 async function handleRegister() {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
   if (!username || !password) return;
-
-  // Generate RSA-OAEP key pair
   const keyPair = await window.crypto.subtle.generateKey(
     { name: "RSA-OAEP", modulusLength: 2048, publicExponent: new Uint8Array([1,0,1]), hash: "SHA-256" },
     true, ["encrypt", "decrypt"]
   );
-
-  // Export both keys
   const pubKeyBuffer = await window.crypto.subtle.exportKey("spki", keyPair.publicKey);
   const privKeyBuffer = await window.crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
-
-  // Store private key in localStorage — never sent to server
   const privKeyB64 = btoa(String.fromCharCode(...new Uint8Array(privKeyBuffer)));
   localStorage.setItem(`privkey_${username}`, privKeyB64);
-
-  // Set public key in hidden field
   const pubKeyB64 = btoa(String.fromCharCode(...new Uint8Array(pubKeyBuffer)));
   document.getElementById("public_key").value = pubKeyB64;
-
-  // Build and submit a real POST form
   const hiddenForm = document.createElement("form");
   hiddenForm.method = "POST";
   hiddenForm.action = "/register";
-
   [["username", username], ["password", password], ["public_key", pubKeyB64]].forEach(([name, value]) => {
     const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = name;
-    input.value = value;
+    input.type = "hidden"; input.name = name; input.value = value;
     hiddenForm.appendChild(input);
   });
-
   document.body.appendChild(hiddenForm);
   hiddenForm.submit();
 }
 </script>
-
 </body>
 </html>

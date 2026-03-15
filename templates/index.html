@@ -49,6 +49,7 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
   display:flex; justify-content:space-between;
   align-items:center; border-bottom:1px solid #eee;
   padding:12px 0; flex-wrap:wrap; gap:8px;
+  transition: opacity 0.3s;
 }
 .file:last-child{ border-bottom:none; }
 .file-info{ display:flex; flex-direction:column; gap:3px; }
@@ -83,17 +84,13 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
 .confirm-modal p{ color:#555; font-size:15px; margin:8px 0 20px; }
 .confirm-modal .file-label{ font-weight:bold; color:#333; }
 .confirm-modal-actions{ justify-content:center; }
-.username-input-row{
-  display:flex; gap:8px; margin-bottom:10px;
-}
+.username-input-row{ display:flex; gap:8px; margin-bottom:10px; }
 .username-input-row input{
   flex:1; padding:9px 12px; border:1px solid #ccc;
   border-radius:6px; font-size:14px;
 }
 .username-input-row button{ padding:9px 14px; font-size:13px; }
-.added-users{
-  display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; min-height:20px;
-}
+.added-users{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; min-height:20px; }
 .user-tag{
   background:#e8e8ff; color:#5a5cff;
   padding:4px 10px; border-radius:20px;
@@ -125,10 +122,24 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
 .bulk-info{ font-size:12px; color:#888; margin-bottom:10px; }
 .select-all-row{
   display:flex; align-items:center; gap:8px;
-  font-size:13px; color:#666; margin-bottom:8px; cursor:pointer;
+  font-size:13px; color:#666; margin-bottom:8px;
 }
 #uploadStatus{ font-size:14px; color:#6b6dfc; margin-top:8px; display:none; }
 .bulk-actions{ display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+.duplicate-warning{
+  background:#fff8e1; border:1px solid #ffe082;
+  border-radius:8px; padding:14px; margin-bottom:12px;
+  display:none;
+}
+.duplicate-warning p{ margin:0 0 8px; font-size:14px; color:#e65100; font-weight:bold; }
+.duplicate-warning ul{ margin:0 0 10px; padding-left:18px; font-size:13px; color:#555; }
+.footer{
+  background:#f8f8f8; border-top:1px solid #eee;
+  padding:12px 30px; display:flex;
+  justify-content:center; gap:30px; margin-top:10px;
+}
+.footer a{ color:#6b6dfc; text-decoration:none; font-size:14px; }
+.footer a:hover{ text-decoration:underline; }
 </style>
 </head>
 <body>
@@ -152,6 +163,7 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
   </div>
   <div style="display:flex;align-items:center;gap:15px;">
     <span style="font-size:14px;opacity:0.85;">&#128100; {{ user }}</span>
+    <a href="/about" style="color:white;text-decoration:none;font-size:14px;opacity:0.85;">&#8505; Help</a>
     <a href="/logout" style="color:white;text-decoration:none;font-size:15px;">Logout</a>
   </div>
 </div>
@@ -167,6 +179,14 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
     <p id="sizeWarning" class="warning"></p>
     <input type="file" id="fileInput" multiple onchange="previewFiles()">
     <div id="previewArea" class="preview"></div>
+
+    <!-- Duplicate warning box -->
+    <div class="duplicate-warning" id="duplicateWarning">
+      <p>&#9888; Duplicate files detected (same name &amp; size already uploaded):</p>
+      <ul id="duplicateList"></ul>
+      <button type="button" onclick="removeDuplicates()" style="background:#e65100;font-size:13px;padding:7px 14px;">Remove Duplicates</button>
+    </div>
+
     <br>
     <button type="button" onclick="handleEncryptedUpload()">&#11014; Upload</button>
     <div id="uploadStatus">🔒 Encrypting and uploading...</div>
@@ -181,7 +201,7 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
         <button class="bulk-delete-btn" onclick="openBulkDeleteModal()">&#128465; Bulk Delete Files</button>
       </div>
       {% for file in own_files %}
-      <div class="file">
+      <div class="file" id="file-row-{{ loop.index }}">
         <div class="file-name">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b6dfc" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -192,12 +212,12 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
         <div class="actions">
           <button class="download-btn" onclick="handleDecryptedDownload('{{ file.filename }}', '{{ user }}')">&#11015; Download</button>
           <button class="share-btn" onclick="openShareModal('{{ file.filename }}')">&#128279; Share</button>
-          <button class="delete-btn" onclick="openDeleteConfirm('{{ file.filename }}')">&#128465; Delete</button>
+          <button class="delete-btn" onclick="openDeleteConfirm('{{ file.filename }}', this)">&#128465; Delete</button>
         </div>
       </div>
       {% endfor %}
     {% else %}
-      <div class="empty-state">
+      <div class="empty-state" id="emptyOwnFiles">
         <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
@@ -337,6 +357,14 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
 
 <form id="deleteForm" method="POST" style="display:none;"></form>
 
+<!-- FOOTER -->
+<div class="footer">
+  <a href="/about">&#8505; About</a>
+  <a href="/about#help">&#10067; Help</a>
+  <a href="/about#faq">&#128172; FAQ</a>
+  <a href="mailto:karthiksaide19@gmail.com">&#9993; Contact Us</a>
+</div>
+
 <script>
 const CURRENT_USER = "{{ user }}";
 const OWN_FILES = {{ own_files | tojson }};
@@ -359,25 +387,49 @@ function addRecentRecipient(username) {
   localStorage.setItem(`recent_recipients_${CURRENT_USER}`, JSON.stringify(r));
 }
 
-// ── Upload ──
+// ── Duplicate detection ──
+let duplicateFilenames = [];
+
 function previewFiles() {
   const files = document.getElementById("fileInput").files;
   const area = document.getElementById("previewArea");
   const warn = document.getElementById("sizeWarning");
+  const dupWarning = document.getElementById("duplicateWarning");
+  const dupList = document.getElementById("duplicateList");
   area.innerHTML = ""; warn.textContent = "";
+  dupWarning.style.display = "none"; dupList.innerHTML = "";
+  duplicateFilenames = [];
   if (!files.length) return;
+
   let totalSize = 0;
   for (let i = 0; i < files.length; i++) totalSize += files[i].size;
   const totalMB = (totalSize / (1024*1024)).toFixed(2);
+
   if (totalSize > MAX_UPLOAD_MB * 1024 * 1024) {
     warn.textContent = `Total size ${totalMB}MB exceeds ${MAX_UPLOAD_MB}MB limit!`;
     document.getElementById("fileInput").value = "";
     return;
   }
+
+  // Check duplicates against existing files
+  const existingFiles = OWN_FILES.map(f => ({ name: f.filename, size: f.filesize || 0 }));
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const isDup = existingFiles.some(e => e.name === f.name && e.size === f.size);
+    if (isDup) duplicateFilenames.push(f.name);
+  }
+
+  if (duplicateFilenames.length > 0) {
+    dupList.innerHTML = duplicateFilenames.map(n => `<li>${n}</li>`).join("");
+    dupWarning.style.display = "block";
+  }
+
+  // Preview
   if (files.length > 1) {
     area.innerHTML = `<p style="margin:8px 0;color:#555;">${files.length} files selected (${totalMB} MB total):</p>`;
     for (let i = 0; i < files.length; i++) {
-      area.innerHTML += `<div style="font-size:13px;color:#777;">&#128196; ${files[i].name} (${(files[i].size/1024/1024).toFixed(2)} MB)</div>`;
+      const isDup = duplicateFilenames.includes(files[i].name);
+      area.innerHTML += `<div style="font-size:13px;color:${isDup ? '#e74c3c' : '#777'};">&#128196; ${files[i].name} (${(files[i].size/1024/1024).toFixed(2)} MB)${isDup ? ' ⚠️ duplicate' : ''}</div>`;
     }
   } else {
     const file = files[0];
@@ -391,11 +443,31 @@ function previewFiles() {
   }
 }
 
+function removeDuplicates() {
+  const input = document.getElementById("fileInput");
+  const files = Array.from(input.files);
+  const filtered = files.filter(f => !duplicateFilenames.includes(f.name));
+  const dt = new DataTransfer();
+  filtered.forEach(f => dt.items.add(f));
+  input.files = dt.files;
+  duplicateFilenames = [];
+  document.getElementById("duplicateWarning").style.display = "none";
+  previewFiles();
+}
+
+// ── Upload ──
 async function handleEncryptedUpload() {
   const files = document.getElementById("fileInput").files;
   const warn = document.getElementById("sizeWarning");
   const status = document.getElementById("uploadStatus");
   if (!files.length) { warn.textContent = "Please select a file."; return; }
+
+  // Block if duplicates still present
+  if (duplicateFilenames.length > 0) {
+    warn.textContent = "Please remove duplicate files before uploading.";
+    return;
+  }
+
   let totalSize = 0;
   for (let i = 0; i < files.length; i++) totalSize += files[i].size;
   if (totalSize > MAX_UPLOAD_MB * 1024 * 1024) { warn.textContent = `Total exceeds ${MAX_UPLOAD_MB}MB!`; return; }
@@ -421,6 +493,7 @@ async function handleEncryptedUpload() {
     formData.append("file", new Blob([encryptedFile]), file.name);
     formData.append("encrypted_key", bytesToB64(encryptedKey));
     formData.append("iv", bytesToB64(iv));
+    formData.append("filesize", file.size);
     await fetch("/upload", { method: "POST", body: formData });
   }
   status.style.display = "none";
@@ -614,7 +687,21 @@ function toggleSelectAll() {
 }
 
 function updateBulkSize() {
-  const count = document.querySelectorAll(".bulk-file-check:checked").length;
+  const checkboxes = document.querySelectorAll(".bulk-file-check");
+  const checked = [...checkboxes].filter(cb => cb.checked);
+  const errEl = document.getElementById("bulkUserError");
+
+  // Block 81st file
+  if (checked.length > MAX_BULK_FILES) {
+    // Uncheck the last checked one
+    for (let i = checkboxes.length - 1; i >= 0; i--) {
+      if (checkboxes[i].checked) { checkboxes[i].checked = false; break; }
+    }
+    errEl.textContent = `Max ${MAX_BULK_FILES} files allowed!`;
+    return;
+  }
+  errEl.textContent = "";
+  const count = checked.length;
   document.getElementById("bulkSelectedCount").textContent = `${count} file${count !== 1 ? 's' : ''} selected`;
   document.getElementById("bulkSizeInfo").textContent = `${count} files selected / max ${MAX_BULK_FILES} files`;
 }
@@ -666,6 +753,19 @@ async function handleBulkShare() {
   if (selectedFiles.length === 0) { errEl.textContent = "Select at least one file."; return; }
   if (selectedFiles.length > MAX_BULK_FILES) { errEl.textContent = `Max ${MAX_BULK_FILES} files allowed.`; return; }
   if (bulkAddedUsers.length === 0) { errEl.textContent = "Add at least one user."; return; }
+
+  // 400MB size check using DB
+  const sizeResp = await fetch("/get_files_size", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filenames: selectedFiles })
+  });
+  const sizeData = await sizeResp.json();
+  if (sizeData.total_mb > MAX_UPLOAD_MB) {
+    errEl.textContent = `Selected files total ${sizeData.total_mb.toFixed(1)}MB — exceeds 400MB limit!`;
+    return;
+  }
+
   const privKeyB64 = localStorage.getItem(`privkey_${CURRENT_USER}`);
   if (!privKeyB64) { alert("Private key not found!"); return; }
   const privateKey = await window.crypto.subtle.importKey(
@@ -736,29 +836,73 @@ function updateBulkDeleteCount() {
 async function confirmBulkDelete() {
   const selected = [...document.querySelectorAll(".bulk-delete-check:checked")].map(cb => cb.value);
   if (selected.length === 0) { alert("Please select at least one file."); return; }
-  for (const filename of selected) {
-    await fetch(`/delete/${encodeURIComponent(filename)}`, { method: "POST" });
-  }
   closeBulkDeleteModal();
-  window.location.href = "/dashboard";
+
+  for (const filename of selected) {
+    // Fade the row
+    const rows = document.querySelectorAll(".file");
+    let targetRow = null;
+    rows.forEach(row => {
+      const nameEl = row.querySelector(".file-name");
+      if (nameEl && nameEl.textContent.trim().includes(filename)) {
+        targetRow = row;
+        row.style.opacity = "0.4";
+        const actions = row.querySelector(".actions");
+        if (actions) actions.innerHTML = `<span style="color:#e74c3c;font-size:13px;">🗑️ Deleting...</span>`;
+      }
+    });
+
+    await fetch(`/delete/${encodeURIComponent(filename)}`, { method: "POST" });
+
+    // Remove row from DOM
+    if (targetRow) {
+      targetRow.style.opacity = "0";
+      await new Promise(r => setTimeout(r, 300));
+      targetRow.remove();
+    }
+  }
+
+  setTimeout(() => window.location.href = "/dashboard", 400);
 }
 
 // ── Single Delete Modal ──
 let pendingDeleteFile = "";
-function openDeleteConfirm(filename) {
+let pendingDeleteBtn = null;
+
+function openDeleteConfirm(filename, btn) {
   pendingDeleteFile = filename;
+  pendingDeleteBtn = btn;
   document.getElementById("deleteFileName").textContent = filename;
   document.getElementById("deleteModal").classList.add("active");
 }
+
 function closeDeleteConfirm() {
   document.getElementById("deleteModal").classList.remove("active");
-  pendingDeleteFile = "";
+  pendingDeleteFile = ""; pendingDeleteBtn = null;
 }
-function confirmDelete() {
+
+async function confirmDelete() {
   if (!pendingDeleteFile) return;
-  const form = document.getElementById("deleteForm");
-  form.action = "/delete/" + encodeURIComponent(pendingDeleteFile);
-  form.submit();
+  closeDeleteConfirm();
+  // Find and fade the row
+  const rows = document.querySelectorAll(".file");
+  let targetRow = null;
+  rows.forEach(row => {
+    const nameEl = row.querySelector(".file-name");
+    if (nameEl && nameEl.textContent.trim().includes(pendingDeleteFile)) {
+      targetRow = row;
+      row.style.opacity = "0.4";
+      const actions = row.querySelector(".actions");
+      if (actions) actions.innerHTML = `<span style="color:#e74c3c;font-size:13px;">🗑️ Deleting...</span>`;
+    }
+  });
+  await fetch(`/delete/${encodeURIComponent(pendingDeleteFile)}`, { method: "POST" });
+  if (targetRow) {
+    targetRow.style.opacity = "0";
+    await new Promise(r => setTimeout(r, 300));
+    targetRow.remove();
+  }
+  pendingDeleteFile = "";
 }
 
 // ── Close modals on backdrop click ──

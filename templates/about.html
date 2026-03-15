@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FileLite - About & Help</title>
+<style>
+body{margin:0;font-family:Arial;background:#f2f3f7;color:#333;}
+.header{
+  background:#6b6dfc;color:white;
+  padding:15px 25px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.header-left{display:flex;align-items:center;gap:12px;}
+.header a{color:white;text-decoration:none;font-size:15px;}
+.header a:hover{opacity:0.8;}
+.container{max-width:860px;margin:40px auto;padding:0 20px 60px;}
+.hero{
+  background:linear-gradient(135deg,#5f6dfc,#7b5cff);
+  color:white;border-radius:14px;
+  padding:40px;text-align:center;margin-bottom:35px;
+}
+.hero h1{margin:0 0 10px;font-size:36px;}
+.hero p{margin:0;font-size:17px;opacity:0.9;}
+.card{
+  background:white;border-radius:10px;
+  padding:28px;margin-bottom:24px;
+  box-shadow:0 4px 15px rgba(0,0,0,0.08);
+}
+.card h2{
+  margin:0 0 18px;font-size:20px;color:#6b6dfc;
+  border-left:4px solid #6b6dfc;padding-left:12px;
+}
+.card p{line-height:1.7;color:#555;margin:0 0 12px;}
+.card ul{padding-left:20px;color:#555;line-height:1.9;margin:0;}
+.card ul li{margin-bottom:4px;}
+.badge{
+  display:inline-block;background:#e8e8ff;color:#5a5cff;
+  padding:3px 10px;border-radius:20px;font-size:13px;margin:3px 3px 3px 0;
+}
+.faq-item{margin-bottom:18px;}
+.faq-item h4{margin:0 0 6px;color:#444;font-size:15px;}
+.faq-item p{margin:0;color:#666;font-size:14px;line-height:1.6;}
+.limit-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px;
+}
+.limit-box{
+  background:#f8f8ff;border:1px solid #e0e0ff;
+  border-radius:8px;padding:14px;text-align:center;
+}
+.limit-box .num{font-size:26px;font-weight:bold;color:#6b6dfc;}
+.limit-box .label{font-size:13px;color:#888;margin-top:4px;}
+.contact-box{
+  background:#f0fff4;border:1px solid #b2dfdb;
+  border-radius:8px;padding:18px;text-align:center;margin-top:10px;
+}
+.contact-box a{color:#27ae60;font-size:16px;font-weight:bold;text-decoration:none;}
+.contact-box a:hover{text-decoration:underline;}
+.contact-box p{color:#555;font-size:14px;margin:6px 0 0;}
+.footer{background:#f8f8f8;border-top:1px solid #eee;padding:12px 30px;display:flex;justify-content:center;gap:30px;margin-top:40px;}
+.footer a{color:#6b6dfc;text-decoration:none;font-size:14px;}
+.footer a:hover{text-decoration:underline;}
+.nav-links{display:flex;gap:20px;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <svg width="32" height="30" viewBox="0 0 120 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="60" cy="55" rx="42" ry="30" fill="white" opacity="0.9"/>
+      <ellipse cx="38" cy="62" rx="22" ry="20" fill="white" opacity="0.9"/>
+      <ellipse cx="82" cy="62" rx="22" ry="20" fill="white" opacity="0.9"/>
+      <rect x="16" y="62" width="88" height="22" fill="white" opacity="0.9"/>
+      <rect x="42" y="32" width="36" height="48" rx="3" fill="#29b6f6"/>
+      <polygon points="66,32 78,44 66,44" fill="#0288d1"/>
+      <polygon points="66,32 78,32 78,44" fill="#4fc3f7"/>
+      <rect x="47" y="52" width="22" height="3" rx="1.5" fill="white" opacity="0.85"/>
+      <rect x="47" y="59" width="22" height="3" rx="1.5" fill="white" opacity="0.85"/>
+      <rect x="47" y="66" width="15" height="3" rx="1.5" fill="white" opacity="0.85"/>
+    </svg>
+    <strong style="font-size:18px;">FileLite</strong>
+  </div>
+  <div class="nav-links">
+    <a href="/">&#128274; Login</a>
+    <a href="/register">&#128100; Register</a>
+    <a href="/dashboard">&#128196; Dashboard</a>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Hero -->
+  <div class="hero">
+    <h1>&#128274; FileLite</h1>
+    <p>Secure, encrypted file sharing — your files are private, always.</p>
+  </div>
+
+  <!-- About -->
+  <div class="card" id="about">
+    <h2>&#8505; About FileLite</h2>
+    <p>FileLite is a secure cloud file sharing platform built with end-to-end encryption. Every file you upload is encrypted directly in your browser before it reaches our servers — meaning nobody, not even we, can read your files.</p>
+    <p>Files are encrypted using <strong>AES-256-GCM</strong> and keys are protected with <strong>RSA-2048 (OAEP)</strong>. Your private key never leaves your device.</p>
+    <p>Built with: <span class="badge">Python Flask</span><span class="badge">Supabase</span><span class="badge">Web Crypto API</span><span class="badge">AES-256-GCM</span><span class="badge">RSA-2048</span></p>
+  </div>
+
+  <!-- Features -->
+  <div class="card" id="features">
+    <h2>&#10024; Features</h2>
+    <ul>
+      <li>&#128274; <strong>End-to-End Encryption</strong> — files encrypted in browser, decrypted only by recipient</li>
+      <li>&#11014; <strong>Multiple File Upload</strong> — upload many files at once (up to 400MB total)</li>
+      <li>&#128279; <strong>Secure File Sharing</strong> — share files with registered users by exact username</li>
+      <li>&#128257; <strong>Bulk Share</strong> — share multiple files to multiple users at once</li>
+      <li>&#128465; <strong>Bulk Delete</strong> — delete multiple files at once with instant feedback</li>
+      <li>&#128336; <strong>Recent Recipients</strong> — quickly share to users you've shared with before</li>
+      <li>&#128203; <strong>Duplicate Detection</strong> — detects duplicate files before upload (same name + same size)</li>
+      <li>&#128101; <strong>User Verification</strong> — username must be exact and registered before sharing</li>
+      <li>&#128336; <strong>Share Timestamps</strong> — see when files were shared with you</li>
+    </ul>
+  </div>
+
+  <!-- Limits -->
+  <div class="card" id="limits">
+    <h2>&#9888; Limitations &amp; Rules</h2>
+    <div class="limit-grid">
+      <div class="limit-box"><div class="num">400MB</div><div class="label">Max upload size (total per session)</div></div>
+      <div class="limit-box"><div class="num">400MB</div><div class="label">Max bulk share size (total)</div></div>
+      <div class="limit-box"><div class="num">80</div><div class="label">Max files in bulk share/delete</div></div>
+      <div class="limit-box"><div class="num">10</div><div class="label">Max users per share</div></div>
+      <div class="limit-box"><div class="num">50MB</div><div class="label">Max size per single file</div></div>
+      <div class="limit-box"><div class="num">RSA-2048</div><div class="label">Encryption key strength</div></div>
+    </div>
+    <ul style="margin-top:18px;">
+      <li>You must type the <strong>exact username</strong> to share — no suggestions from platform users</li>
+      <li>Duplicate files (same name + same size) are detected and blocked before upload</li>
+      <li>Once a file is deleted, it is permanently removed — this cannot be undone</li>
+      <li>If you delete a shared file, it disappears from the recipient's dashboard immediately</li>
+      <li>If a recipient downloaded the file before deletion, their local copy remains on their device</li>
+      <li>Your private key is stored only in your browser's localStorage — do not clear browser data</li>
+      <li>Registering on a new device requires re-registration to generate a new key pair</li>
+    </ul>
+  </div>
+
+  <!-- Help -->
+  <div class="card" id="help">
+    <h2>&#10067; How To Use</h2>
+    <ul>
+      <li><strong>Register:</strong> Create an account — an encryption key pair is generated automatically</li>
+      <li><strong>Upload:</strong> Select files (up to 400MB total) — they are encrypted before uploading</li>
+      <li><strong>Share:</strong> Click Share on any file, type the exact username of the recipient, click Add then Share</li>
+      <li><strong>Bulk Share:</strong> Click "Bulk Share Files", select files, add up to 10 users, click Share All</li>
+      <li><strong>Download:</strong> Click Download — file is decrypted in your browser and saved to your device</li>
+      <li><strong>Delete:</strong> Click Delete on a file — it is permanently removed for you and all recipients</li>
+      <li><strong>Bulk Delete:</strong> Click "Bulk Delete Files", select files, confirm — they disappear one by one</li>
+      <li><strong>Duplicates:</strong> If you select files already uploaded (same name + size), you'll be warned before uploading</li>
+    </ul>
+  </div>
+
+  <!-- FAQ -->
+  <div class="card" id="faq">
+    <h2>&#128172; Frequently Asked Questions</h2>
+    <div class="faq-item">
+      <h4>Can anyone read my files?</h4>
+      <p>No. Files are encrypted in your browser before upload. Even the server and database admin cannot read them.</p>
+    </div>
+    <div class="faq-item">
+      <h4>What happens if I clear my browser data?</h4>
+      <p>Your private key is stored in localStorage. If you clear browser data, your key is lost and you won't be able to decrypt your files. You would need to re-register.</p>
+    </div>
+    <div class="faq-item">
+      <h4>Can I use FileLite on multiple devices?</h4>
+      <p>Currently each device needs its own registration as the private key is stored locally. Multi-device support is not available yet.</p>
+    </div>
+    <div class="faq-item">
+      <h4>What happens when the owner deletes a shared file?</h4>
+      <p>The file is immediately removed from the recipient's "Shared With Me" section. If they already downloaded it, their local copy remains on their device.</p>
+    </div>
+    <div class="faq-item">
+      <h4>How does duplicate detection work?</h4>
+      <p>Before uploading, FileLite checks if any selected file has the same filename AND same file size as an existing uploaded file. Both conditions must match to be flagged as a duplicate.</p>
+    </div>
+    <div class="faq-item">
+      <h4>Can I share with someone who is not registered?</h4>
+      <p>No. The recipient must have a registered FileLite account. You must type their exact username.</p>
+    </div>
+    <div class="faq-item">
+      <h4>Is there a file size limit?</h4>
+      <p>Yes — 50MB per individual file and 400MB total per upload session or bulk share.</p>
+    </div>
+    <div class="faq-item">
+      <h4>How many users can I share a file with?</h4>
+      <p>Maximum 10 users per share operation (single or bulk).</p>
+    </div>
+  </div>
+
+  <!-- Contact -->
+  <div class="card" id="contact">
+    <h2>&#9993; Contact Us</h2>
+    <p style="color:#555;">Have questions, feedback, or found a bug? Feel free to reach out!</p>
+    <div class="contact-box">
+      <a href="mailto:karthiksaide19@gmail.com">&#9993; karthiksaide19@gmail.com</a>
+      <p>We typically respond within 24–48 hours.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <a href="/about">&#8505; About</a>
+  <a href="/about#help">&#10067; Help</a>
+  <a href="/about#faq">&#128172; FAQ</a>
+  <a href="mailto:karthiksaide19@gmail.com">&#9993; Contact Us</a>
+</div>
+
+</body>
+</html>

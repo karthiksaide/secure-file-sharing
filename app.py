@@ -49,34 +49,10 @@ def register():
         supabase.table("users").insert({
             "username": username,
             "password": hashed,
-            "public_key": public_key   # ← save public key
+            "public_key": public_key
         }).execute()
         return redirect("/")
     return render_template("register.html")
-
-
-# ── NEW: Get a user's public key ──
-@app.route("/get_public_key/<username>")
-def get_public_key(username):
-    if "user" not in session:
-        return "Unauthorized", 403
-    user = supabase.table("users").select("public_key").eq("username", username).execute()
-    if not user.data or not user.data[0]["public_key"]:
-        return "Not found", 404
-    return user.data[0]["public_key"]
-
-
-# ── NEW: Get encrypted AES key for a file (owner only) ──
-@app.route("/get_file_key/<path:filename>")
-def get_file_key(filename):
-    if "user" not in session:
-        return jsonify({}), 403
-    user = session["user"]
-    rec = supabase.table("files").select("encrypted_key, iv")\
-        .eq("filename", filename).eq("username", user).execute()
-    if not rec.data:
-        return jsonify({}), 404
-    return jsonify({"encrypted_key": rec.data[0]["encrypted_key"], "iv": rec.data[0]["iv"]})
 
 
 @app.route("/dashboard")
@@ -98,7 +74,9 @@ def dashboard():
     all_users = [u["username"] for u in users.data if u["username"] != user]
     return render_template("index.html",
         own_files=own_files.data if own_files.data else [],
-        shared_files=shared_files, all_users=all_users, user=user)
+        shared_files=shared_files,
+        all_users=all_users,
+        user=user)
 
 
 @app.route("/upload", methods=["POST"])
@@ -108,7 +86,7 @@ def upload():
     files = request.files.getlist("file")
     encrypted_key = request.form.get("encrypted_key")
     iv = request.form.get("iv")
-    errors = []
+    filesize = request.form.get("filesize", 0)
     for file in files:
         if file.filename == "": continue
         filename = file.filename
@@ -116,7 +94,6 @@ def upload():
         existing = supabase.table("files").select("*")\
             .eq("filename", filename).eq("username", session["user"]).execute()
         if existing.data:
-            errors.append(f"'{filename}' already exists")
             continue
         supabase.storage.from_("encrypted-files").upload(
             f"{session['user']}/{filename}", file_bytes, {"upsert": "true"}
@@ -124,13 +101,60 @@ def upload():
         supabase.table("files").insert({
             "filename": filename,
             "username": session["user"],
-            "encrypted_key": encrypted_key,  # ← save encrypted AES key
-            "iv": iv                          # ← save IV
+            "encrypted_key": encrypted_key,
+            "iv": iv,
+            "filesize": int(filesize)
         }).execute()
     return redirect("/dashboard")
 
 
-# ── UPDATED: Share sends encrypted key per recipient ──
+@app.route("/get_public_key/<username>")
+def get_public_key(username):
+    if "user" not in session:
+        return "Unauthorized", 403
+    user = supabase.table("users").select("public_key").eq("username", username).execute()
+    if not user.data or not user.data[0]["public_key"]:
+        return "Not found", 404
+    return user.data[0]["public_key"]
+
+
+@app.route("/check_user/<username>")
+def check_user(username):
+    if "user" not in session:
+        return jsonify({}), 403
+    user = supabase.table("users").select("username").eq("username", username).execute()
+    if not user.data:
+        return jsonify({}), 404
+    return jsonify({"exists": True})
+
+
+@app.route("/get_file_key/<path:filename>")
+def get_file_key(filename):
+    if "user" not in session:
+        return jsonify({}), 403
+    user = session["user"]
+    rec = supabase.table("files").select("encrypted_key, iv")\
+        .eq("filename", filename).eq("username", user).execute()
+    if not rec.data:
+        return jsonify({}), 404
+    return jsonify({"encrypted_key": rec.data[0]["encrypted_key"], "iv": rec.data[0]["iv"]})
+
+
+@app.route("/get_files_size", methods=["POST"])
+def get_files_size():
+    if "user" not in session:
+        return jsonify({}), 403
+    data = request.get_json()
+    filenames = data.get("filenames", [])
+    total_bytes = 0
+    for filename in filenames:
+        rec = supabase.table("files").select("filesize")\
+            .eq("filename", filename).eq("username", session["user"]).execute()
+        if rec.data and rec.data[0]["filesize"]:
+            total_bytes += rec.data[0]["filesize"]
+    return jsonify({"total_mb": total_bytes / (1024 * 1024)})
+
+
 @app.route("/share/<path:filename>", methods=["POST"])
 def share(filename):
     if "user" not in session:
@@ -149,21 +173,18 @@ def share(filename):
                 "filename": filename,
                 "owner": session["user"],
                 "shared_with": u,
-                "encrypted_key": enc_key,  # ← recipient's encrypted AES key
+                "encrypted_key": enc_key,
                 "iv": iv
             }).execute()
     return jsonify({"status": "ok"})
 
 
-# ── NEW: Download returns encrypted bytes + key info as JSON ──
 @app.route("/download_encrypted/<path:filename>")
 def download_encrypted(filename):
     if "user" not in session:
         return jsonify({}), 403
     user = session["user"]
     owner = request.args.get("owner", user)
-
-    # Check permission
     if owner == user:
         rec = supabase.table("files").select("encrypted_key, iv")\
             .eq("filename", filename).eq("username", user).execute()
@@ -176,11 +197,8 @@ def download_encrypted(filename):
         if not shared.data: return jsonify({}), 403
         encrypted_key = shared.data[0]["encrypted_key"]
         iv = shared.data[0]["iv"]
-
-    # Get encrypted file bytes from storage
     file_bytes = supabase.storage.from_("encrypted-files").download(f"{owner}/{filename}")
     file_b64 = base64.b64encode(file_bytes).decode()
-
     return jsonify({"file_b64": file_b64, "encrypted_key": encrypted_key, "iv": iv})
 
 
@@ -191,7 +209,7 @@ def delete(filename):
     supabase.storage.from_("encrypted-files").remove([f"{user}/{filename}"])
     supabase.table("files").delete().eq("filename", filename).eq("username", user).execute()
     supabase.table("file_permissions").delete().eq("filename", filename).eq("owner", user).execute()
-    return redirect("/dashboard")
+    return jsonify({"status": "ok"})
 
 
 @app.route("/logout")
@@ -199,15 +217,11 @@ def logout():
     session.clear()
     return redirect("/")
 
-# ── Check if user exists (for share username validation) ──
-@app.route("/check_user/<username>")
-def check_user(username):
-    if "user" not in session:
-        return jsonify({}), 403
-    user = supabase.table("users").select("username").eq("username", username).execute()
-    if not user.data:
-        return jsonify({}), 404
-    return jsonify({"exists": True})
+
+@app.route("/about")
+def about():
+    return render_template("about.html")
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
