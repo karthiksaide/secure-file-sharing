@@ -1,6 +1,6 @@
-from flask import Flask, render_template, request, redirect, session, send_file, jsonify
+from flask import Flask, render_template, request, redirect, session, jsonify
 from supabase import create_client
-import os, io, base64
+import os, base64
 from datetime import datetime, timezone, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -42,6 +42,7 @@ def register():
         username = request.form["username"]
         password = request.form["password"]
         public_key = request.form.get("public_key", "")
+        encrypted_private_key = request.form.get("encrypted_private_key", "")
         exists = supabase.table("users").select("*").eq("username", username).execute()
         if exists.data:
             return render_template("register.html", error="Username already exists")
@@ -49,10 +50,66 @@ def register():
         supabase.table("users").insert({
             "username": username,
             "password": hashed,
-            "public_key": public_key
+            "public_key": public_key,
+            "encrypted_private_key": encrypted_private_key
         }).execute()
         return redirect("/")
     return render_template("register.html")
+
+
+@app.route("/get_encrypted_private_key/<username>")
+def get_encrypted_private_key(username):
+    user = supabase.table("users").select("encrypted_private_key").eq("username", username).execute()
+    if not user.data or not user.data[0]["encrypted_private_key"]:
+        return jsonify({}), 404
+    return jsonify({"encrypted_private_key": user.data[0]["encrypted_private_key"]})
+
+
+@app.route("/get_public_key/<username>")
+def get_public_key(username):
+    if "user" not in session:
+        return "Unauthorized", 403
+    user = supabase.table("users").select("public_key").eq("username", username).execute()
+    if not user.data or not user.data[0]["public_key"]:
+        return "Not found", 404
+    return user.data[0]["public_key"]
+
+
+@app.route("/check_user/<username>")
+def check_user(username):
+    if "user" not in session:
+        return jsonify({}), 403
+    user = supabase.table("users").select("username").eq("username", username).execute()
+    if not user.data:
+        return jsonify({}), 404
+    return jsonify({"exists": True})
+
+
+@app.route("/get_file_key/<path:filename>")
+def get_file_key(filename):
+    if "user" not in session:
+        return jsonify({}), 403
+    user = session["user"]
+    rec = supabase.table("files").select("encrypted_key, iv")\
+        .eq("filename", filename).eq("username", user).execute()
+    if not rec.data:
+        return jsonify({}), 404
+    return jsonify({"encrypted_key": rec.data[0]["encrypted_key"], "iv": rec.data[0]["iv"]})
+
+
+@app.route("/get_files_size", methods=["POST"])
+def get_files_size():
+    if "user" not in session:
+        return jsonify({}), 403
+    data = request.get_json()
+    filenames = data.get("filenames", [])
+    total_bytes = 0
+    for filename in filenames:
+        rec = supabase.table("files").select("filesize")\
+            .eq("filename", filename).eq("username", session["user"]).execute()
+        if rec.data and rec.data[0]["filesize"]:
+            total_bytes += rec.data[0]["filesize"]
+    return jsonify({"total_mb": total_bytes / (1024 * 1024)})
 
 
 @app.route("/dashboard")
@@ -106,53 +163,6 @@ def upload():
             "filesize": int(filesize)
         }).execute()
     return redirect("/dashboard")
-
-
-@app.route("/get_public_key/<username>")
-def get_public_key(username):
-    if "user" not in session:
-        return "Unauthorized", 403
-    user = supabase.table("users").select("public_key").eq("username", username).execute()
-    if not user.data or not user.data[0]["public_key"]:
-        return "Not found", 404
-    return user.data[0]["public_key"]
-
-
-@app.route("/check_user/<username>")
-def check_user(username):
-    if "user" not in session:
-        return jsonify({}), 403
-    user = supabase.table("users").select("username").eq("username", username).execute()
-    if not user.data:
-        return jsonify({}), 404
-    return jsonify({"exists": True})
-
-
-@app.route("/get_file_key/<path:filename>")
-def get_file_key(filename):
-    if "user" not in session:
-        return jsonify({}), 403
-    user = session["user"]
-    rec = supabase.table("files").select("encrypted_key, iv")\
-        .eq("filename", filename).eq("username", user).execute()
-    if not rec.data:
-        return jsonify({}), 404
-    return jsonify({"encrypted_key": rec.data[0]["encrypted_key"], "iv": rec.data[0]["iv"]})
-
-
-@app.route("/get_files_size", methods=["POST"])
-def get_files_size():
-    if "user" not in session:
-        return jsonify({}), 403
-    data = request.get_json()
-    filenames = data.get("filenames", [])
-    total_bytes = 0
-    for filename in filenames:
-        rec = supabase.table("files").select("filesize")\
-            .eq("filename", filename).eq("username", session["user"]).execute()
-        if rec.data and rec.data[0]["filesize"]:
-            total_bytes += rec.data[0]["filesize"]
-    return jsonify({"total_mb": total_bytes / (1024 * 1024)})
 
 
 @app.route("/share/<path:filename>", methods=["POST"])

@@ -60,7 +60,8 @@ button:hover{background:#5a5cff;}
         <input type="checkbox" id="showpass" onclick="togglePassword()">
       </div>
       <input type="hidden" id="public_key" name="public_key">
-      <button type="button" onclick="handleRegister()">Register</button>
+      <input type="hidden" id="encrypted_private_key" name="encrypted_private_key">
+      <button type="button" id="registerBtn" onclick="handleRegister()">Register</button>
     </form>
     <div class="link">Already have an account? <a href="/">Login</a></div>
   </div>
@@ -77,24 +78,61 @@ function togglePassword(){
   let p = document.getElementById("password");
   p.type = p.type === "password" ? "text" : "password";
 }
+
+// ── Derive AES key from password using PBKDF2 ──
+async function deriveKeyFromPassword(password, salt) {
+  const enc = new TextEncoder();
+  const keyMaterial = await window.crypto.subtle.importKey(
+    "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveKey"]
+  );
+  return window.crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+    keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
+  );
+}
+
+function bytesToB64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+
 async function handleRegister() {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
   if (!username || !password) return;
+
+  const btn = document.getElementById("registerBtn");
+  btn.textContent = "Generating keys...";
+  btn.disabled = true;
+
+  // Generate RSA key pair
   const keyPair = await window.crypto.subtle.generateKey(
     { name: "RSA-OAEP", modulusLength: 2048, publicExponent: new Uint8Array([1,0,1]), hash: "SHA-256" },
     true, ["encrypt", "decrypt"]
   );
+
   const pubKeyBuffer = await window.crypto.subtle.exportKey("spki", keyPair.publicKey);
   const privKeyBuffer = await window.crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
-  const privKeyB64 = btoa(String.fromCharCode(...new Uint8Array(privKeyBuffer)));
-  localStorage.setItem(`privkey_${username}`, privKeyB64);
-  const pubKeyB64 = btoa(String.fromCharCode(...new Uint8Array(pubKeyBuffer)));
+  const pubKeyB64 = bytesToB64(pubKeyBuffer);
+
+  // Encrypt private key with password using AES-GCM + PBKDF2
+  const salt = window.crypto.getRandomValues(new Uint8Array(16));
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const aesKey = await deriveKeyFromPassword(password, salt);
+  const encryptedPrivKey = await window.crypto.subtle.encrypt(
+    { name: "AES-GCM", iv }, aesKey, privKeyBuffer
+  );
+
+  // Store as: salt_b64:iv_b64:encryptedKey_b64
+  const encryptedPrivKeyStr = `${bytesToB64(salt)}:${bytesToB64(iv)}:${bytesToB64(encryptedPrivKey)}`;
+
+  // Also cache in localStorage for this session
+  localStorage.setItem(`privkey_${username}`, bytesToB64(privKeyBuffer));
+
   document.getElementById("public_key").value = pubKeyB64;
+  document.getElementById("encrypted_private_key").value = encryptedPrivKeyStr;
+
   const hiddenForm = document.createElement("form");
   hiddenForm.method = "POST";
   hiddenForm.action = "/register";
-  [["username", username], ["password", password], ["public_key", pubKeyB64]].forEach(([name, value]) => {
+  [["username", username], ["password", password], ["public_key", pubKeyB64], ["encrypted_private_key", encryptedPrivKeyStr]].forEach(([name, value]) => {
     const input = document.createElement("input");
     input.type = "hidden"; input.name = name; input.value = value;
     hiddenForm.appendChild(input);

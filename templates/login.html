@@ -50,17 +50,15 @@ button:hover{background:#5a5cff;}
     {% if error %}
     <div class="error-box">&#9888; {{ error }}</div>
     {% endif %}
-    <form method="POST">
-      <input type="text" name="username" placeholder="Username" required
-        class="{{ 'error-input' if error and 'Username' in error else '' }}"
+    <form id="loginForm">
+      <input type="text" id="username" name="username" placeholder="Username" required
         value="{{ request.form.get('username', '') }}">
-      <input type="password" id="password" name="password" placeholder="Password" required
-        class="{{ 'error-input' if error and 'password' in error else '' }}">
+      <input type="password" id="password" name="password" placeholder="Password" required>
       <div class="show-pass">
         <label for="showpass">Show password</label>
         <input type="checkbox" id="showpass" onclick="togglePassword()">
       </div>
-      <button type="submit">Login</button>
+      <button type="button" id="loginBtn" onclick="handleLogin()">Login</button>
     </form>
     <div class="link">Don't have an account? <a href="/register">Create account</a></div>
   </div>
@@ -76,6 +74,68 @@ button:hover{background:#5a5cff;}
 function togglePassword(){
   let p = document.getElementById("password");
   p.type = p.type === "password" ? "text" : "password";
+}
+
+function b64ToBytes(b64){ return Uint8Array.from(atob(b64), c => c.charCodeAt(0)); }
+function bytesToB64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+
+async function deriveKeyFromPassword(password, salt) {
+  const enc = new TextEncoder();
+  const keyMaterial = await window.crypto.subtle.importKey(
+    "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveKey"]
+  );
+  return window.crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+    keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
+  );
+}
+
+async function handleLogin() {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
+  if (!username || !password) return;
+
+  const btn = document.getElementById("loginBtn");
+
+  // Check if private key already in localStorage (same device)
+  const cached = localStorage.getItem(`privkey_${username}`);
+
+  // Submit login first
+  btn.textContent = "Logging in...";
+  btn.disabled = true;
+
+  const formData = new FormData();
+  formData.append("username", username);
+  formData.append("password", password);
+  const resp = await fetch("/", { method: "POST", body: formData, redirect: "manual" });
+
+  if (resp.status === 200 || resp.type === "opaqueredirect") {
+    // If no cached key, fetch and decrypt from server
+    if (!cached) {
+      try {
+        const keyResp = await fetch(`/get_encrypted_private_key/${encodeURIComponent(username)}`);
+        if (keyResp.ok) {
+          const keyData = await keyResp.json();
+          const parts = keyData.encrypted_private_key.split(":");
+          if (parts.length === 3) {
+            const salt = b64ToBytes(parts[0]);
+            const iv = b64ToBytes(parts[1]);
+            const encryptedKey = b64ToBytes(parts[2]);
+            const aesKey = await deriveKeyFromPassword(password, salt);
+            const privKeyBuffer = await window.crypto.subtle.decrypt(
+              { name: "AES-GCM", iv }, aesKey, encryptedKey
+            );
+            localStorage.setItem(`privkey_${username}`, bytesToB64(privKeyBuffer));
+          }
+        }
+      } catch(e) {
+        console.log("Key fetch failed:", e);
+      }
+    }
+    window.location.href = "/dashboard";
+  } else {
+    window.location.href = "/";
+  }
 }
 </script>
 </body>
