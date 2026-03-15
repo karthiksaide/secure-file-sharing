@@ -17,6 +17,7 @@ input.error-input{border-color:#e74c3c;}
 .show-pass input[type="checkbox"]{width:auto;margin:0;padding:0;cursor:pointer;}
 button{width:100%;padding:12px;background:#6b6dfc;border:none;color:white;font-size:16px;border-radius:6px;cursor:pointer;}
 button:hover{background:#5a5cff;}
+button:disabled{background:#aaa;cursor:not-allowed;}
 .link{text-align:center;margin-top:15px;}
 .error-box{background:#fff0f0;border:1px solid #f5c6c6;color:#c0392b;padding:10px 14px;border-radius:6px;font-size:14px;margin-bottom:15px;display:flex;align-items:center;gap:8px;}
 .footer{background:#f8f8f8;border-top:1px solid #eee;padding:12px 30px;display:flex;justify-content:center;gap:30px;}
@@ -47,9 +48,7 @@ button:hover{background:#5a5cff;}
 <div class="right-panel">
   <div class="card">
     <h2>Login</h2>
-    {% if error %}
-    <div class="error-box">&#9888; {{ error }}</div>
-    {% endif %}
+    <div id="errorBox" style="display:none;" class="error-box"></div>
     <form id="loginForm">
       <input type="text" id="username" name="username" placeholder="Username" required
         value="{{ request.form.get('username', '') }}">
@@ -90,27 +89,43 @@ async function deriveKeyFromPassword(password, salt) {
   );
 }
 
+function showError(msg) {
+  const box = document.getElementById("errorBox");
+  box.innerHTML = `&#9888; ${msg}`;
+  box.style.display = "flex";
+}
+
+function hideError() {
+  document.getElementById("errorBox").style.display = "none";
+}
+
 async function handleLogin() {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
-  if (!username || !password) return;
+  if (!username || !password) { showError("Please enter username and password."); return; }
 
+  hideError();
   const btn = document.getElementById("loginBtn");
-
-  // Check if private key already in localStorage (same device)
-  const cached = localStorage.getItem(`privkey_${username}`);
-
-  // Submit login first
   btn.textContent = "Logging in...";
   btn.disabled = true;
 
-  const formData = new FormData();
-  formData.append("username", username);
-  formData.append("password", password);
-  const resp = await fetch("/", { method: "POST", body: formData, redirect: "manual" });
+  try {
+    const formData = new FormData();
+    formData.append("username", username);
+    formData.append("password", password);
 
-  if (resp.status === 200 || resp.type === "opaqueredirect") {
-    // If no cached key, fetch and decrypt from server
+    const resp = await fetch("/login_check", { method: "POST", body: formData });
+    const result = await resp.json();
+
+    if (!result.success) {
+      showError(result.error);
+      btn.textContent = "Login";
+      btn.disabled = false;
+      return;
+    }
+
+    // Fetch and decrypt private key if not cached
+    const cached = localStorage.getItem(`privkey_${username}`);
     if (!cached) {
       try {
         const keyResp = await fetch(`/get_encrypted_private_key/${encodeURIComponent(username)}`);
@@ -128,15 +143,22 @@ async function handleLogin() {
             localStorage.setItem(`privkey_${username}`, bytesToB64(privKeyBuffer));
           }
         }
-      } catch(e) {
-        console.log("Key fetch failed:", e);
-      }
+      } catch(e) { console.log("Key fetch failed:", e); }
     }
+
     window.location.href = "/dashboard";
-  } else {
-    window.location.href = "/";
+
+  } catch(e) {
+    showError("Something went wrong. Please try again.");
+    btn.textContent = "Login";
+    btn.disabled = false;
   }
 }
+
+// Allow Enter key to submit
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter") handleLogin();
+});
 </script>
 </body>
 </html>

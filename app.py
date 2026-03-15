@@ -28,12 +28,25 @@ def login():
         password = request.form["password"]
         user = supabase.table("users").select("*").eq("username", username).execute()
         if not user.data:
-            return render_template("login.html", error="Username does not exist")
+            return render_template("login.html", error="User does not exist")
         if not check_password_hash(user.data[0]["password"], password):
             return render_template("login.html", error="Incorrect password")
         session["user"] = username
         return redirect("/dashboard")
     return render_template("login.html")
+
+
+@app.route("/login_check", methods=["POST"])
+def login_check():
+    username = request.form["username"]
+    password = request.form["password"]
+    user = supabase.table("users").select("*").eq("username", username).execute()
+    if not user.data:
+        return jsonify({"success": False, "error": "User does not exist"})
+    if not check_password_hash(user.data[0]["password"], password):
+        return jsonify({"success": False, "error": "Incorrect password"})
+    session["user"] = username
+    return jsonify({"success": True})
 
 
 @app.route("/register", methods=["GET", "POST"])
