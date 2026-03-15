@@ -32,10 +32,12 @@ button{
 }
 button:hover{ background:#5a5cff; }
 button.cancel{ background:#ccc; color:#333; }
+button.cancel:hover{ background:#bbb; }
 button.delete-btn{ background:#e74c3c; }
 button.share-btn{ background:#27ae60; }
 button.download-btn{ background:#6b6dfc; }
 button.confirm-delete{ background:#e74c3c; }
+button.bulk-share-btn{ background:#8e44ad; }
 .warning{ color:red; font-size:14px; margin:0 0 10px; }
 .preview img{ max-width:200px; margin-top:10px; border-radius:6px; }
 .file{
@@ -64,8 +66,9 @@ button.confirm-delete{ background:#e74c3c; }
 .modal-overlay.active, .confirm-modal-overlay.active{ display:flex; }
 .modal, .confirm-modal{
   background:white; border-radius:12px;
-  padding:30px; width:430px; max-width:92%;
+  padding:30px; width:480px; max-width:92%;
   box-shadow:0 10px 40px rgba(0,0,0,0.2);
+  max-height:90vh; overflow-y:auto;
 }
 .modal h3, .confirm-modal h3{ margin-top:0; margin-bottom:15px; }
 .modal-actions, .confirm-modal-actions{
@@ -75,18 +78,60 @@ button.confirm-delete{ background:#e74c3c; }
 .confirm-modal p{ color:#555; font-size:15px; margin:8px 0 20px; }
 .confirm-modal .file-label{ font-weight:bold; color:#333; }
 .confirm-modal-actions{ justify-content:center; }
-.share-users{
-  max-height:160px; overflow-y:auto;
+
+/* Username input share */
+.username-input-row{
+  display:flex; gap:8px; margin-bottom:10px;
+}
+.username-input-row input{
+  flex:1; padding:9px 12px; border:1px solid #ccc;
+  border-radius:6px; font-size:14px;
+}
+.username-input-row button{
+  padding:9px 14px; font-size:13px;
+}
+.added-users{
+  display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; min-height:20px;
+}
+.user-tag{
+  background:#e8e8ff; color:#5a5cff;
+  padding:4px 10px; border-radius:20px;
+  font-size:13px; display:flex; align-items:center; gap:6px;
+}
+.user-tag span{ cursor:pointer; color:#999; font-size:15px; }
+.user-tag span:hover{ color:#e74c3c; }
+.user-error{ color:#e74c3c; font-size:13px; margin-bottom:8px; min-height:18px; }
+.user-limit{ color:#888; font-size:12px; margin-bottom:10px; }
+.recent-users{ margin-bottom:10px; }
+.recent-label{ font-size:12px; color:#aaa; margin-bottom:5px; }
+.recent-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.recent-chip{
+  background:#f0f0f0; color:#555;
+  padding:3px 10px; border-radius:20px;
+  font-size:12px; cursor:pointer; border:1px solid #ddd;
+}
+.recent-chip:hover{ background:#e8e8ff; color:#5a5cff; border-color:#6b6dfc; }
+
+/* Bulk share file selector */
+.file-selector{
+  max-height:200px; overflow-y:auto;
   border:1px solid #eee; border-radius:6px;
   padding:8px; margin-bottom:10px;
 }
-.share-users label{
+.file-selector label{
   display:flex; align-items:center; gap:8px;
   padding:5px 2px; font-size:14px; cursor:pointer;
 }
-.share-users label:hover{ color:#6b6dfc; }
-.no-users{ color:#aaa; font-size:14px; text-align:center; padding:10px; }
+.file-selector label:hover{ color:#6b6dfc; }
+.bulk-info{ font-size:12px; color:#888; margin-bottom:10px; }
+.bulk-selected-count{ font-size:13px; color:#6b6dfc; font-weight:bold; margin-bottom:8px; }
+
 #uploadStatus{ font-size:14px; color:#6b6dfc; margin-top:8px; display:none; }
+.file-checkbox{ margin-right:6px; }
+.select-all-row{
+  display:flex; align-items:center; gap:8px;
+  font-size:13px; color:#666; margin-bottom:8px; cursor:pointer;
+}
 </style>
 </head>
 <body>
@@ -118,7 +163,7 @@ button.confirm-delete{ background:#e74c3c; }
 
   <!-- Upload -->
   <div class="card">
-    <div class="section-title">Upload File</div>
+    <div class="section-title">Upload Files</div>
     {% if error %}
     <p class="warning">&#9888; {{ error }}</p>
     {% endif %}
@@ -134,9 +179,13 @@ button.confirm-delete{ background:#e74c3c; }
   <div class="card">
     <div class="section-title">Your Files</div>
     {% if own_files %}
+      <div style="margin-bottom:12px;">
+        <button class="bulk-share-btn" onclick="openBulkShareModal()">&#128257; Bulk Share Files</button>
+      </div>
       {% for file in own_files %}
       <div class="file">
         <div class="file-name">
+          <input type="checkbox" class="file-checkbox bulk-checkbox" value="{{ file.filename }}" data-size="{{ file.filesize | default(0) }}">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b6dfc" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -201,15 +250,66 @@ button.confirm-delete{ background:#e74c3c; }
 
 </div>
 
-<!-- SHARE MODAL -->
+<!-- SHARE MODAL (single file) -->
 <div class="modal-overlay" id="shareModal">
   <div class="modal">
     <h3>&#128279; Share File</h3>
-    <p style="margin:0 0 12px;color:#555;font-size:14px;">Select users to share with:</p>
-    <div class="share-users" id="shareUserList"></div>
+    <p style="margin:0 0 4px;color:#555;font-size:14px;">Type exact username to share with (max 10 users):</p>
+    <div class="user-limit" id="shareUserLimit">0 / 10 users added</div>
+
+    <!-- Recent users -->
+    <div class="recent-users" id="shareRecentSection" style="display:none;">
+      <div class="recent-label">&#128336; Recently shared with:</div>
+      <div class="recent-chips" id="shareRecentChips"></div>
+    </div>
+
+    <div class="username-input-row">
+      <input type="text" id="shareUsernameInput" placeholder="Enter username..." onkeydown="if(event.key==='Enter'){addShareUser()}">
+      <button type="button" onclick="addShareUser()">Add</button>
+    </div>
+    <div class="user-error" id="shareUserError"></div>
+    <div class="added-users" id="shareAddedUsers"></div>
     <div class="modal-actions">
       <button type="button" class="cancel" onclick="closeShareModal()">Cancel</button>
       <button type="button" onclick="handleShare()">Share</button>
+    </div>
+  </div>
+</div>
+
+<!-- BULK SHARE MODAL -->
+<div class="modal-overlay" id="bulkShareModal">
+  <div class="modal">
+    <h3>&#128257; Bulk Share Files</h3>
+
+    <!-- File selector -->
+    <p style="margin:0 0 6px;color:#555;font-size:14px;">Select files to share (max 80 files, max 400MB total):</p>
+    <div class="select-all-row">
+      <input type="checkbox" id="selectAllFiles" onchange="toggleSelectAll()">
+      <label for="selectAllFiles">Select all</label>
+      <span id="bulkSelectedCount" style="margin-left:auto;color:#6b6dfc;font-size:13px;font-weight:bold;"></span>
+    </div>
+    <div class="file-selector" id="bulkFileSelector"></div>
+    <div class="bulk-info" id="bulkSizeInfo">Total size: 0 MB / 400 MB</div>
+
+    <!-- User input -->
+    <p style="margin:10px 0 4px;color:#555;font-size:14px;">Add users to share with (max 10 users):</p>
+    <div class="user-limit" id="bulkUserLimit">0 / 10 users added</div>
+
+    <div class="recent-users" id="bulkRecentSection" style="display:none;">
+      <div class="recent-label">&#128336; Recently shared with:</div>
+      <div class="recent-chips" id="bulkRecentChips"></div>
+    </div>
+
+    <div class="username-input-row">
+      <input type="text" id="bulkUsernameInput" placeholder="Enter username..." onkeydown="if(event.key==='Enter'){addBulkUser()}">
+      <button type="button" onclick="addBulkUser()">Add</button>
+    </div>
+    <div class="user-error" id="bulkUserError"></div>
+    <div class="added-users" id="bulkAddedUsers"></div>
+
+    <div class="modal-actions">
+      <button type="button" class="cancel" onclick="closeBulkShareModal()">Cancel</button>
+      <button type="button" onclick="handleBulkShare()">Share All</button>
     </div>
   </div>
 </div>
@@ -229,39 +329,81 @@ button.confirm-delete{ background:#e74c3c; }
   </div>
 </div>
 
-<!-- Hidden DELETE form -->
 <form id="deleteForm" method="POST" style="display:none;"></form>
 
 <script>
-const ALL_USERS = {{ all_users | tojson }};
 const CURRENT_USER = "{{ user }}";
+const OWN_FILES = {{ own_files | tojson }};
 
 // ── Helpers ──
-function b64ToBytes(b64){
-  return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+function b64ToBytes(b64){ return Uint8Array.from(atob(b64), c => c.charCodeAt(0)); }
+function bytesToB64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+const MAX_UPLOAD_MB = 400;
+const MAX_SHARE_USERS = 10;
+const MAX_BULK_FILES = 80;
+
+// ── Recent recipients (stored in localStorage) ──
+function getRecentRecipients() {
+  try { return JSON.parse(localStorage.getItem(`recent_recipients_${CURRENT_USER}`) || "[]"); }
+  catch { return []; }
 }
-function bytesToB64(buf){
-  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+function addRecentRecipient(username) {
+  let recents = getRecentRecipients();
+  recents = [username, ...recents.filter(u => u !== username)].slice(0, 10);
+  localStorage.setItem(`recent_recipients_${CURRENT_USER}`, JSON.stringify(recents));
 }
 
-// ── Encrypt & Upload ──
+// ── Upload ──
+function previewFiles() {
+  const files = document.getElementById("fileInput").files;
+  const area = document.getElementById("previewArea");
+  const warn = document.getElementById("sizeWarning");
+  area.innerHTML = "";
+  warn.textContent = "";
+  if (!files.length) return;
+
+  let totalSize = 0;
+  for (let i = 0; i < files.length; i++) totalSize += files[i].size;
+  const totalMB = (totalSize / (1024*1024)).toFixed(2);
+
+  if (totalSize > MAX_UPLOAD_MB * 1024 * 1024) {
+    warn.textContent = `Total size ${totalMB}MB exceeds ${MAX_UPLOAD_MB}MB limit!`;
+    document.getElementById("fileInput").value = "";
+    return;
+  }
+
+  if (files.length > 1) {
+    area.innerHTML = `<p style="margin:8px 0;color:#555;">${files.length} files selected (${totalMB} MB total):</p>`;
+    for (let i = 0; i < files.length; i++) {
+      area.innerHTML += `<div style="font-size:13px;color:#777;">&#128196; ${files[i].name} (${(files[i].size/1024/1024).toFixed(2)} MB)</div>`;
+    }
+  } else {
+    const file = files[0];
+    if (file.type.startsWith("image")) {
+      const img = document.createElement("img");
+      img.src = URL.createObjectURL(file);
+      area.appendChild(img);
+    } else {
+      area.innerHTML = `Selected: <strong>${file.name}</strong> (${(file.size/1024/1024).toFixed(2)} MB)`;
+    }
+  }
+}
+
 async function handleEncryptedUpload() {
   const files = document.getElementById("fileInput").files;
   const warn = document.getElementById("sizeWarning");
   const status = document.getElementById("uploadStatus");
-
   if (!files.length) { warn.textContent = "Please select a file."; return; }
 
-  for (let i = 0; i < files.length; i++) {
-    if (files[i].size > 50 * 1024 * 1024) {
-      warn.textContent = `"${files[i].name}" exceeds 50MB limit!`;
-      return;
-    }
+  let totalSize = 0;
+  for (let i = 0; i < files.length; i++) totalSize += files[i].size;
+  if (totalSize > MAX_UPLOAD_MB * 1024 * 1024) {
+    warn.textContent = `Total size exceeds ${MAX_UPLOAD_MB}MB limit!`;
+    return;
   }
   warn.textContent = "";
   status.style.display = "block";
 
-  // Get own public key from server
   const myPubKeyResp = await fetch(`/get_public_key/${CURRENT_USER}`);
   const myPubKeyB64 = await myPubKeyResp.text();
   const myPubKey = await window.crypto.subtle.importKey(
@@ -271,26 +413,17 @@ async function handleEncryptedUpload() {
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
+    status.textContent = `&#128274; Encrypting ${i+1}/${files.length}: ${file.name}...`;
 
-    // Generate AES-256 key + random IV
     const aesKey = await window.crypto.subtle.generateKey(
       { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]
     );
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
-
-    // Encrypt file bytes
     const fileBuffer = await file.arrayBuffer();
-    const encryptedFile = await window.crypto.subtle.encrypt(
-      { name: "AES-GCM", iv }, aesKey, fileBuffer
-    );
-
-    // Encrypt AES key with own RSA public key
+    const encryptedFile = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv }, aesKey, fileBuffer);
     const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
-    const encryptedKey = await window.crypto.subtle.encrypt(
-      { name: "RSA-OAEP" }, myPubKey, rawAesKey
-    );
+    const encryptedKey = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, myPubKey, rawAesKey);
 
-    // POST to server
     const formData = new FormData();
     formData.append("file", new Blob([encryptedFile]), file.name);
     formData.append("encrypted_key", bytesToB64(encryptedKey));
@@ -302,107 +435,140 @@ async function handleEncryptedUpload() {
   window.location.href = "/dashboard";
 }
 
-// ── Decrypt & Download ──
+// ── Download ──
 async function handleDecryptedDownload(filename, owner) {
   const resp = await fetch(`/download_encrypted/${encodeURIComponent(filename)}?owner=${encodeURIComponent(owner)}`);
   if (!resp.ok) { alert("Download failed or unauthorized."); return; }
-
   const data = await resp.json();
-
-  // Get private key from localStorage
   const privKeyB64 = localStorage.getItem(`privkey_${CURRENT_USER}`);
-  if (!privKeyB64) {
-    alert("Private key not found!\n\nThis usually means you registered on a different device or browser.\nPlease re-register or export your key.");
-    return;
-  }
-
+  if (!privKeyB64) { alert("Private key not found!\n\nPlease re-register on this device."); return; }
   const privateKey = await window.crypto.subtle.importKey(
     "pkcs8", b64ToBytes(privKeyB64),
     { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]
   );
-
-  // Decrypt AES key
-  const aesKeyRaw = await window.crypto.subtle.decrypt(
-    { name: "RSA-OAEP" }, privateKey, b64ToBytes(data.encrypted_key)
-  );
-  const aesKey = await window.crypto.subtle.importKey(
-    "raw", aesKeyRaw, { name: "AES-GCM" }, false, ["decrypt"]
-  );
-
-  // Decrypt file
+  const aesKeyRaw = await window.crypto.subtle.decrypt({ name: "RSA-OAEP" }, privateKey, b64ToBytes(data.encrypted_key));
+  const aesKey = await window.crypto.subtle.importKey("raw", aesKeyRaw, { name: "AES-GCM" }, false, ["decrypt"]);
   const decryptedBuffer = await window.crypto.subtle.decrypt(
     { name: "AES-GCM", iv: b64ToBytes(data.iv) }, aesKey, b64ToBytes(data.file_b64)
   );
-
-  // Trigger browser download
   const blob = new Blob([decryptedBuffer]);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
 
-// ── Share Modal ──
+// ── SINGLE FILE SHARE MODAL ──
 let currentShareFilename = "";
+let shareAddedUsers = [];
 
 function openShareModal(filename) {
   currentShareFilename = filename;
-  const list = document.getElementById("shareUserList");
-  list.innerHTML = "";
-  if (ALL_USERS.length === 0) {
-    list.innerHTML = '<div class="no-users">No other users available</div>';
-  } else {
-    ALL_USERS.forEach(u => {
-      const label = document.createElement("label");
-      label.innerHTML = `<input type="checkbox" name="users" value="${u}"> ${u}`;
-      list.appendChild(label);
+  shareAddedUsers = [];
+  document.getElementById("shareAddedUsers").innerHTML = "";
+  document.getElementById("shareUsernameInput").value = "";
+  document.getElementById("shareUserError").textContent = "";
+  updateShareUserLimit();
+
+  // Show recent recipients
+  const recents = getRecentRecipients();
+  const recentSection = document.getElementById("shareRecentSection");
+  const recentChips = document.getElementById("shareRecentChips");
+  if (recents.length > 0) {
+    recentChips.innerHTML = "";
+    recents.forEach(u => {
+      const chip = document.createElement("div");
+      chip.className = "recent-chip";
+      chip.textContent = u;
+      chip.onclick = () => addShareUserDirect(u);
+      recentChips.appendChild(chip);
     });
+    recentSection.style.display = "block";
+  } else {
+    recentSection.style.display = "none";
   }
+
   document.getElementById("shareModal").classList.add("active");
+  setTimeout(() => document.getElementById("shareUsernameInput").focus(), 100);
 }
 
 function closeShareModal() {
   document.getElementById("shareModal").classList.remove("active");
   currentShareFilename = "";
+  shareAddedUsers = [];
+}
+
+function updateShareUserLimit() {
+  document.getElementById("shareUserLimit").textContent = `${shareAddedUsers.length} / ${MAX_SHARE_USERS} users added`;
+}
+
+async function addShareUser() {
+  const input = document.getElementById("shareUsernameInput");
+  const username = input.value.trim();
+  const errEl = document.getElementById("shareUserError");
+  if (!username) { errEl.textContent = "Please enter a username."; return; }
+  await addShareUserDirect(username);
+  input.value = "";
+}
+
+async function addShareUserDirect(username) {
+  const errEl = document.getElementById("shareUserError");
+  errEl.textContent = "";
+
+  if (username === CURRENT_USER) { errEl.textContent = "You cannot share with yourself."; return; }
+  if (shareAddedUsers.includes(username)) { errEl.textContent = `"${username}" already added.`; return; }
+  if (shareAddedUsers.length >= MAX_SHARE_USERS) { errEl.textContent = `Max ${MAX_SHARE_USERS} users allowed.`; return; }
+
+  // Check if user exists
+  const resp = await fetch(`/check_user/${encodeURIComponent(username)}`);
+  if (resp.status === 404) { errEl.textContent = `User "${username}" does not exist.`; return; }
+  if (!resp.ok) { errEl.textContent = "Error checking user."; return; }
+
+  shareAddedUsers.push(username);
+  updateShareUserLimit();
+  renderShareTags();
+}
+
+function removeShareUser(username) {
+  shareAddedUsers = shareAddedUsers.filter(u => u !== username);
+  updateShareUserLimit();
+  renderShareTags();
+}
+
+function renderShareTags() {
+  const container = document.getElementById("shareAddedUsers");
+  container.innerHTML = "";
+  shareAddedUsers.forEach(u => {
+    const tag = document.createElement("div");
+    tag.className = "user-tag";
+    tag.innerHTML = `&#128100; ${u} <span onclick="removeShareUser('${u}')">&times;</span>`;
+    container.appendChild(tag);
+  });
 }
 
 async function handleShare() {
-  const checked = [...document.querySelectorAll('#shareUserList input:checked')].map(i => i.value);
-  if (!checked.length) { closeShareModal(); return; }
+  if (shareAddedUsers.length === 0) { document.getElementById("shareUserError").textContent = "Add at least one user."; return; }
 
-  // Get own private key
   const privKeyB64 = localStorage.getItem(`privkey_${CURRENT_USER}`);
   if (!privKeyB64) { alert("Private key not found!"); return; }
-
   const privateKey = await window.crypto.subtle.importKey(
-    "pkcs8", b64ToBytes(privKeyB64),
-    { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]
+    "pkcs8", b64ToBytes(privKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]
   );
 
-  // Get this file's encrypted AES key from server
   const metaResp = await fetch(`/get_file_key/${encodeURIComponent(currentShareFilename)}`);
   const meta = await metaResp.json();
+  const aesKeyRaw = await window.crypto.subtle.decrypt({ name: "RSA-OAEP" }, privateKey, b64ToBytes(meta.encrypted_key));
 
-  // Decrypt the AES key with own private key
-  const aesKeyRaw = await window.crypto.subtle.decrypt(
-    { name: "RSA-OAEP" }, privateKey, b64ToBytes(meta.encrypted_key)
-  );
-
-  // Re-encrypt AES key for each recipient's public key
   const sharePayloads = [];
-  for (const u of checked) {
+  for (const u of shareAddedUsers) {
     const pubKeyResp = await fetch(`/get_public_key/${u}`);
     const pubKeyB64 = await pubKeyResp.text();
     const recipientPubKey = await window.crypto.subtle.importKey(
-      "spki", b64ToBytes(pubKeyB64),
-      { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]
+      "spki", b64ToBytes(pubKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]
     );
-    const encryptedKeyForRecipient = await window.crypto.subtle.encrypt(
-      { name: "RSA-OAEP" }, recipientPubKey, aesKeyRaw
-    );
+    const encryptedKeyForRecipient = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, recipientPubKey, aesKeyRaw);
     sharePayloads.push({ user: u, encrypted_key: bytesToB64(encryptedKeyForRecipient) });
+    addRecentRecipient(u);
   }
 
   await fetch(`/share/${encodeURIComponent(currentShareFilename)}`, {
@@ -415,20 +581,182 @@ async function handleShare() {
   window.location.href = "/dashboard";
 }
 
+// ── BULK SHARE MODAL ──
+let bulkAddedUsers = [];
+
+function openBulkShareModal() {
+  bulkAddedUsers = [];
+  document.getElementById("bulkAddedUsers").innerHTML = "";
+  document.getElementById("bulkUsernameInput").value = "";
+  document.getElementById("bulkUserError").textContent = "";
+  document.getElementById("selectAllFiles").checked = false;
+  updateBulkUserLimit();
+
+  // Populate file list
+  const selector = document.getElementById("bulkFileSelector");
+  selector.innerHTML = "";
+  if (OWN_FILES.length === 0) {
+    selector.innerHTML = '<div style="color:#aaa;font-size:14px;padding:8px;">No files uploaded yet.</div>';
+  } else {
+    OWN_FILES.forEach(f => {
+      const label = document.createElement("label");
+      label.innerHTML = `<input type="checkbox" class="bulk-file-check" value="${f.filename}" onchange="updateBulkSize()"> &#128196; ${f.filename}`;
+      selector.appendChild(label);
+    });
+  }
+  updateBulkSize();
+
+  // Recent recipients
+  const recents = getRecentRecipients();
+  const recentSection = document.getElementById("bulkRecentSection");
+  const recentChips = document.getElementById("bulkRecentChips");
+  if (recents.length > 0) {
+    recentChips.innerHTML = "";
+    recents.forEach(u => {
+      const chip = document.createElement("div");
+      chip.className = "recent-chip";
+      chip.textContent = u;
+      chip.onclick = () => addBulkUserDirect(u);
+      recentChips.appendChild(chip);
+    });
+    recentSection.style.display = "block";
+  } else {
+    recentSection.style.display = "none";
+  }
+
+  document.getElementById("bulkShareModal").classList.add("active");
+}
+
+function closeBulkShareModal() {
+  document.getElementById("bulkShareModal").classList.remove("active");
+  bulkAddedUsers = [];
+}
+
+function toggleSelectAll() {
+  const checked = document.getElementById("selectAllFiles").checked;
+  const checkboxes = document.querySelectorAll(".bulk-file-check");
+  let count = 0;
+  checkboxes.forEach(cb => {
+    if (count < MAX_BULK_FILES) { cb.checked = checked; count++; }
+    else cb.checked = false;
+  });
+  updateBulkSize();
+}
+
+function updateBulkSize() {
+  const checked = [...document.querySelectorAll(".bulk-file-check:checked")];
+  const count = checked.length;
+  document.getElementById("bulkSelectedCount").textContent = `${count} file${count !== 1 ? 's' : ''} selected`;
+  document.getElementById("bulkSizeInfo").textContent = `${count} files selected / max ${MAX_BULK_FILES} files`;
+  if (count > MAX_BULK_FILES) {
+    document.getElementById("bulkUserError").textContent = `Max ${MAX_BULK_FILES} files allowed.`;
+  }
+}
+
+function updateBulkUserLimit() {
+  document.getElementById("bulkUserLimit").textContent = `${bulkAddedUsers.length} / ${MAX_SHARE_USERS} users added`;
+}
+
+async function addBulkUser() {
+  const input = document.getElementById("bulkUsernameInput");
+  const username = input.value.trim();
+  if (!username) { document.getElementById("bulkUserError").textContent = "Please enter a username."; return; }
+  await addBulkUserDirect(username);
+  input.value = "";
+}
+
+async function addBulkUserDirect(username) {
+  const errEl = document.getElementById("bulkUserError");
+  errEl.textContent = "";
+  if (username === CURRENT_USER) { errEl.textContent = "You cannot share with yourself."; return; }
+  if (bulkAddedUsers.includes(username)) { errEl.textContent = `"${username}" already added.`; return; }
+  if (bulkAddedUsers.length >= MAX_SHARE_USERS) { errEl.textContent = `Max ${MAX_SHARE_USERS} users allowed.`; return; }
+
+  const resp = await fetch(`/check_user/${encodeURIComponent(username)}`);
+  if (resp.status === 404) { errEl.textContent = `User "${username}" does not exist.`; return; }
+  if (!resp.ok) { errEl.textContent = "Error checking user."; return; }
+
+  bulkAddedUsers.push(username);
+  updateBulkUserLimit();
+  renderBulkTags();
+}
+
+function removeBulkUser(username) {
+  bulkAddedUsers = bulkAddedUsers.filter(u => u !== username);
+  updateBulkUserLimit();
+  renderBulkTags();
+}
+
+function renderBulkTags() {
+  const container = document.getElementById("bulkAddedUsers");
+  container.innerHTML = "";
+  bulkAddedUsers.forEach(u => {
+    const tag = document.createElement("div");
+    tag.className = "user-tag";
+    tag.innerHTML = `&#128100; ${u} <span onclick="removeBulkUser('${u}')">&times;</span>`;
+    container.appendChild(tag);
+  });
+}
+
+async function handleBulkShare() {
+  const errEl = document.getElementById("bulkUserError");
+  const selectedFiles = [...document.querySelectorAll(".bulk-file-check:checked")].map(cb => cb.value);
+
+  if (selectedFiles.length === 0) { errEl.textContent = "Select at least one file."; return; }
+  if (selectedFiles.length > MAX_BULK_FILES) { errEl.textContent = `Max ${MAX_BULK_FILES} files allowed.`; return; }
+  if (bulkAddedUsers.length === 0) { errEl.textContent = "Add at least one user."; return; }
+
+  const privKeyB64 = localStorage.getItem(`privkey_${CURRENT_USER}`);
+  if (!privKeyB64) { alert("Private key not found!"); return; }
+  const privateKey = await window.crypto.subtle.importKey(
+    "pkcs8", b64ToBytes(privKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]
+  );
+
+  // Pre-fetch all recipient public keys
+  const recipientKeys = {};
+  for (const u of bulkAddedUsers) {
+    const pubKeyResp = await fetch(`/get_public_key/${u}`);
+    const pubKeyB64 = await pubKeyResp.text();
+    recipientKeys[u] = await window.crypto.subtle.importKey(
+      "spki", b64ToBytes(pubKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]
+    );
+    addRecentRecipient(u);
+  }
+
+  // Share each file to all users
+  for (const filename of selectedFiles) {
+    const metaResp = await fetch(`/get_file_key/${encodeURIComponent(filename)}`);
+    const meta = await metaResp.json();
+    const aesKeyRaw = await window.crypto.subtle.decrypt({ name: "RSA-OAEP" }, privateKey, b64ToBytes(meta.encrypted_key));
+
+    const sharePayloads = [];
+    for (const u of bulkAddedUsers) {
+      const encryptedKeyForRecipient = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, recipientKeys[u], aesKeyRaw);
+      sharePayloads.push({ user: u, encrypted_key: bytesToB64(encryptedKeyForRecipient) });
+    }
+
+    await fetch(`/share/${encodeURIComponent(filename)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ users: sharePayloads, iv: meta.iv })
+    });
+  }
+
+  closeBulkShareModal();
+  window.location.href = "/dashboard";
+}
+
 // ── Delete Modal ──
 let pendingDeleteFile = "";
-
 function openDeleteConfirm(filename) {
   pendingDeleteFile = filename;
   document.getElementById("deleteFileName").textContent = filename;
   document.getElementById("deleteModal").classList.add("active");
 }
-
 function closeDeleteConfirm() {
   document.getElementById("deleteModal").classList.remove("active");
   pendingDeleteFile = "";
 }
-
 function confirmDelete() {
   if (!pendingDeleteFile) return;
   const form = document.getElementById("deleteForm");
@@ -436,36 +764,10 @@ function confirmDelete() {
   form.submit();
 }
 
-// ── File Preview ──
-function previewFiles() {
-  const files = document.getElementById("fileInput").files;
-  const area = document.getElementById("previewArea");
-  area.innerHTML = "";
-  if (!files.length) return;
-  if (files.length > 1) {
-    area.innerHTML = `<p style="margin:8px 0;color:#555;">${files.length} files selected:</p>`;
-    for (let i = 0; i < files.length; i++) {
-      area.innerHTML += `<div style="font-size:13px;color:#777;">&#128196; ${files[i].name}</div>`;
-    }
-    return;
-  }
-  const file = files[0];
-  if (file.type.startsWith("image")) {
-    const img = document.createElement("img");
-    img.src = URL.createObjectURL(file);
-    area.appendChild(img);
-  } else {
-    area.innerHTML = `Selected: <strong>${file.name}</strong>`;
-  }
-}
-
 // ── Close modals on backdrop click ──
-document.getElementById("shareModal").addEventListener("click", e => {
-  if (e.target === e.currentTarget) closeShareModal();
-});
-document.getElementById("deleteModal").addEventListener("click", e => {
-  if (e.target === e.currentTarget) closeDeleteConfirm();
-});
+document.getElementById("shareModal").addEventListener("click", e => { if(e.target===e.currentTarget) closeShareModal(); });
+document.getElementById("bulkShareModal").addEventListener("click", e => { if(e.target===e.currentTarget) closeBulkShareModal(); });
+document.getElementById("deleteModal").addEventListener("click", e => { if(e.target===e.currentTarget) closeDeleteConfirm(); });
 </script>
 
 </body>

@@ -199,6 +199,15 @@ def logout():
     session.clear()
     return redirect("/")
 
+# ── Check if user exists (for share username validation) ──
+@app.route("/check_user/<username>")
+def check_user(username):
+    if "user" not in session:
+        return jsonify({}), 403
+    user = supabase.table("users").select("username").eq("username", username).execute()
+    if not user.data:
+        return jsonify({}), 404
+    return jsonify({"exists": True})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
