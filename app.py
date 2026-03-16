@@ -80,8 +80,7 @@ def get_encrypted_private_key(username):
 
 @app.route("/get_public_key/<username>")
 def get_public_key(username):
-    if "user" not in session:
-        return "Unauthorized", 403
+    
     user = supabase.table("users").select("public_key").eq("username", username).execute()
     if not user.data or not user.data[0]["public_key"]:
         return "Not found", 404
