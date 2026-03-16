@@ -80,7 +80,6 @@ def get_encrypted_private_key(username):
 
 @app.route("/get_public_key/<username>")
 def get_public_key(username):
-    
     user = supabase.table("users").select("public_key").eq("username", username).execute()
     if not user.data or not user.data[0]["public_key"]:
         return "Not found", 404
@@ -201,13 +200,7 @@ def share(filename):
             }).execute()
     return jsonify({"status": "ok"})
 
-@app.route("/share/<path:filename>", methods=["POST"])
-def share(filename):
-    if "user" not in session:
-        return redirect("/")
-    print(f"SHARE: user={session['user']}, file={filename}")  # ADD THIS
-    data = request.get_json()
-    
+
 @app.route("/download_encrypted/<path:filename>")
 def download_encrypted(filename):
     if "user" not in session:
@@ -251,9 +244,11 @@ def logout():
 def about():
     return render_template("about.html")
 
+
 @app.route("/health")
 def health():
     return "ok", 200
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
