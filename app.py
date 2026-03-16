@@ -99,9 +99,9 @@ def check_user(username):
 
 @app.route("/get_file_key/<path:filename>")
 def get_file_key(filename):
-    if "user" not in session:
+    user = session.get("user")
+    if not user:
         return jsonify({}), 403
-    user = session["user"]
     rec = supabase.table("files").select("encrypted_key, iv")\
         .eq("filename", filename).eq("username", user).execute()
     if not rec.data:
@@ -111,14 +111,15 @@ def get_file_key(filename):
 
 @app.route("/get_files_size", methods=["POST"])
 def get_files_size():
-    if "user" not in session:
+    user = session.get("user")
+    if not user:
         return jsonify({}), 403
     data = request.get_json()
     filenames = data.get("filenames", [])
     total_bytes = 0
     for filename in filenames:
         rec = supabase.table("files").select("filesize")\
-            .eq("filename", filename).eq("username", session["user"]).execute()
+            .eq("filename", filename).eq("username", user).execute()
         if rec.data and rec.data[0]["filesize"]:
             total_bytes += rec.data[0]["filesize"]
     return jsonify({"total_mb": total_bytes / (1024 * 1024)})
