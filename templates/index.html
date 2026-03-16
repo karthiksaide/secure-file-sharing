@@ -436,7 +436,6 @@ function bytesToB64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf)
 const MAX_UPLOAD_MB = 400;
 const MAX_SHARE_USERS = 10;
 const MAX_BULK_FILES = 80;
-const PARALLEL_LIMIT = 4;
 
 function getRecentRecipients() {
   try { return JSON.parse(localStorage.getItem(`recent_recipients_${CURRENT_USER}`) || "[]"); }
@@ -446,20 +445,6 @@ function addRecentRecipient(username) {
   let r = getRecentRecipients();
   r = [username, ...r.filter(u => u !== username)].slice(0, 10);
   localStorage.setItem(`recent_recipients_${CURRENT_USER}`, JSON.stringify(r));
-}
-
-async function runInParallel(items, asyncFn, limit = PARALLEL_LIMIT) {
-  const results = new Array(items.length);
-  let index = 0;
-  async function worker() {
-    while (index < items.length) {
-      const i = index++;
-      results[i] = await asyncFn(items[i], i);
-    }
-  }
-  const workers = Array.from({ length: Math.min(limit, items.length) }, worker);
-  await Promise.all(workers);
-  return results;
 }
 
 function showProgressModal(title, files) {
@@ -624,7 +609,8 @@ async function handleEncryptedUpload() {
   );
   showUploadProgressModal(files);
   let successCount = 0;
-  const encryptedFiles = await runInParallel(files, async (file, i) => {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
     updateUploadFile(i, "active", files.length);
     try {
       const aesKey = await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
@@ -633,27 +619,18 @@ async function handleEncryptedUpload() {
       const encryptedFile = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv }, aesKey, fileBuffer);
       const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
       const encryptedKey = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, myPubKey, rawAesKey);
-      return { file, encryptedFile, encryptedKey, iv, index: i, success: true };
-    } catch(e) {
-      updateUploadFile(i, "failed", files.length);
-      return { file, index: i, success: false };
-    }
-  });
-  await runInParallel(encryptedFiles, async (item) => {
-    if (!item.success) return;
-    try {
       const formData = new FormData();
-      formData.append("file", new Blob([item.encryptedFile]), item.file.name);
-      formData.append("encrypted_key", bytesToB64(item.encryptedKey));
-      formData.append("iv", bytesToB64(item.iv));
-      formData.append("filesize", item.file.size);
+      formData.append("file", new Blob([encryptedFile]), file.name);
+      formData.append("encrypted_key", bytesToB64(encryptedKey));
+      formData.append("iv", bytesToB64(iv));
+      formData.append("filesize", file.size);
       await fetch("/upload", { method: "POST", body: formData });
-      updateUploadFile(item.index, "done", files.length);
+      updateUploadFile(i, "done", files.length);
       successCount++;
     } catch(e) {
-      updateUploadFile(item.index, "failed", files.length);
+      updateUploadFile(i, "failed", files.length);
     }
-  });
+  }
   closeUploadProgressModal(successCount, files.length);
 }
 
@@ -757,7 +734,8 @@ async function handleShare() {
     const metaResp = await fetch(`/get_file_key/${encodeURIComponent(currentShareFilename)}`);
     const meta = await metaResp.json();
     const aesKeyRaw = await window.crypto.subtle.decrypt({ name: "RSA-OAEP" }, privateKey, b64ToBytes(meta.encrypted_key));
-    const sharePayloads = await Promise.all(shareAddedUsers.map(async u => {
+    const sharePayloads = [];
+    for (const u of shareAddedUsers) {
       const pubKeyResp = await fetch(`/get_public_key/${u}`);
       if (!pubKeyResp.ok) throw new Error(`Public key not found for: ${u}`);
       const pubKeyB64 = (await pubKeyResp.text()).trim();
@@ -766,8 +744,8 @@ async function handleShare() {
       );
       const encryptedKeyForRecipient = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, recipientPubKey, aesKeyRaw);
       addRecentRecipient(u);
-      return { user: u, encrypted_key: bytesToB64(encryptedKeyForRecipient) };
-    }));
+      sharePayloads.push({ user: u, encrypted_key: bytesToB64(encryptedKeyForRecipient) });
+    }
     await fetch(`/share/${encodeURIComponent(currentShareFilename)}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ users: sharePayloads, iv: meta.iv })
@@ -776,7 +754,6 @@ async function handleShare() {
     closeProgressModal(1, 1);
   } catch(e) {
     updateProgressFile(0, "failed", 1);
-    console.error("Share error:", e);
     setTimeout(() => {
       document.getElementById("progressModal").classList.remove("active");
       alert("Share failed: " + e.message);
@@ -883,7 +860,6 @@ function renderBulkTags() {
   });
 }
 
-// ── FIXED: handleBulkShare with full error handling ──
 async function handleBulkShare() {
   const errEl = document.getElementById("bulkUserError");
   const selectedFiles = [...document.querySelectorAll(".bulk-file-check:checked")].map(cb => cb.value);
@@ -911,13 +887,13 @@ async function handleBulkShare() {
       "pkcs8", b64ToBytes(privKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]
     );
 
-    // Fetch all recipient public keys one by one with full error checking
+    // Sequential public key fetch
     const recipientKeys = {};
     for (const u of bulkAddedUsers) {
       const pubKeyResp = await fetch(`/get_public_key/${u}`);
-      if (!pubKeyResp.ok) throw new Error(`Could not get public key for user: ${u} (status ${pubKeyResp.status})`);
+      if (!pubKeyResp.ok) throw new Error(`Could not get public key for: ${u}`);
       const pubKeyB64 = (await pubKeyResp.text()).trim();
-      if (!pubKeyB64 || pubKeyB64 === "Not found") throw new Error(`Empty public key for user: ${u}`);
+      if (!pubKeyB64 || pubKeyB64 === "Not found") throw new Error(`Empty public key for: ${u}`);
       recipientKeys[u] = await window.crypto.subtle.importKey(
         "spki", b64ToBytes(pubKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]
       );
@@ -926,7 +902,9 @@ async function handleBulkShare() {
 
     let successCount = 0;
 
-    await runInParallel(selectedFiles, async (filename, i) => {
+    // Sequential file processing
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const filename = selectedFiles[i];
       updateProgressFile(i, "active", selectedFiles.length);
       try {
         const metaResp = await fetch(`/get_file_key/${encodeURIComponent(filename)}`);
@@ -936,29 +914,28 @@ async function handleBulkShare() {
         const aesKeyRaw = await window.crypto.subtle.decrypt(
           { name: "RSA-OAEP" }, privateKey, b64ToBytes(meta.encrypted_key)
         );
-        const sharePayloads = await Promise.all(bulkAddedUsers.map(async u => {
+        const sharePayloads = [];
+        for (const u of bulkAddedUsers) {
           const encryptedKeyForRecipient = await window.crypto.subtle.encrypt(
             { name: "RSA-OAEP" }, recipientKeys[u], aesKeyRaw
           );
-          return { user: u, encrypted_key: bytesToB64(encryptedKeyForRecipient) };
-        }));
+          sharePayloads.push({ user: u, encrypted_key: bytesToB64(encryptedKeyForRecipient) });
+        }
         const shareResp = await fetch(`/share/${encodeURIComponent(filename)}`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ users: sharePayloads, iv: meta.iv })
         });
-        if (!shareResp.ok) throw new Error(`Share request failed for: ${filename}`);
+        if (!shareResp.ok) throw new Error(`Share failed for: ${filename}`);
         updateProgressFile(i, "done", selectedFiles.length);
         successCount++;
       } catch(e) {
-        console.error(`Failed for ${filename}:`, e);
         updateProgressFile(i, "failed", selectedFiles.length);
       }
-    });
+    }
 
     closeProgressModal(successCount, selectedFiles.length);
 
   } catch(e) {
-    console.error("Bulk share error:", e);
     document.getElementById("progressModal").classList.remove("active");
     alert("Bulk share failed: " + e.message);
   }
