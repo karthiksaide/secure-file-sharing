@@ -201,7 +201,13 @@ def share(filename):
             }).execute()
     return jsonify({"status": "ok"})
 
-
+@app.route("/share/<path:filename>", methods=["POST"])
+def share(filename):
+    if "user" not in session:
+        return redirect("/")
+    print(f"SHARE: user={session['user']}, file={filename}")  # ADD THIS
+    data = request.get_json()
+    
 @app.route("/download_encrypted/<path:filename>")
 def download_encrypted(filename):
     if "user" not in session:
