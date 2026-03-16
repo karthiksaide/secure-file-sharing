@@ -138,8 +138,6 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
 }
 .footer a{ color:#6b6dfc; text-decoration:none; font-size:14px; }
 .footer a:hover{ text-decoration:underline; }
-
-/* K5 - Progress Modal */
 .progress-modal-overlay{
   display:none; position:fixed;
   top:0; left:0; width:100%; height:100%;
@@ -192,7 +190,6 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
 </head>
 <body>
 
-<!-- HEADER -->
 <div class="header">
   <div class="header-left">
     <svg width="38" height="35" viewBox="0 0 120 110" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -218,7 +215,6 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
 
 <div class="container">
 
-  <!-- Upload -->
   <div class="card">
     <div class="section-title">Upload Files</div>
     {% if error %}<p class="warning">&#9888; {{ error }}</p>{% endif %}
@@ -235,7 +231,6 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
     <div id="uploadStatus">🔒 Encrypting and uploading...</div>
   </div>
 
-  <!-- Your Files -->
   <div class="card">
     <div class="section-title">Your Files</div>
     {% if own_files %}
@@ -272,7 +267,6 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
     {% endif %}
   </div>
 
-  <!-- Shared With Me -->
   <div class="card">
     <div class="section-title">Shared With Me</div>
     {% if shared_files %}
@@ -397,7 +391,7 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
   </div>
 </div>
 
-<!-- K5: PROGRESS MODAL -->
+<!-- PROGRESS MODAL -->
 <div class="progress-modal-overlay" id="progressModal">
   <div class="progress-modal">
     <h3 id="progressTitle">&#128274; Sharing files...</h3>
@@ -410,7 +404,7 @@ button.bulk-delete-btn:hover{ background:#c0392b; }
   </div>
 </div>
 
-<!-- K5: UPLOAD PROGRESS MODAL -->
+<!-- UPLOAD PROGRESS MODAL -->
 <div class="progress-modal-overlay" id="uploadProgressModal">
   <div class="progress-modal">
     <h3>&#11014; Uploading files...</h3>
@@ -442,7 +436,7 @@ function bytesToB64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf)
 const MAX_UPLOAD_MB = 400;
 const MAX_SHARE_USERS = 10;
 const MAX_BULK_FILES = 80;
-const PARALLEL_LIMIT = 4; // K6: max parallel operations
+const PARALLEL_LIMIT = 4;
 
 function getRecentRecipients() {
   try { return JSON.parse(localStorage.getItem(`recent_recipients_${CURRENT_USER}`) || "[]"); }
@@ -454,7 +448,6 @@ function addRecentRecipient(username) {
   localStorage.setItem(`recent_recipients_${CURRENT_USER}`, JSON.stringify(r));
 }
 
-// ── K6: Parallel processing helper ──
 async function runInParallel(items, asyncFn, limit = PARALLEL_LIMIT) {
   const results = new Array(items.length);
   let index = 0;
@@ -469,7 +462,6 @@ async function runInParallel(items, asyncFn, limit = PARALLEL_LIMIT) {
   return results;
 }
 
-// ── K5: Progress Modal helpers ──
 function showProgressModal(title, files) {
   document.getElementById("progressTitle").textContent = title;
   document.getElementById("progressSubtitle").textContent = `0 / ${files.length} files processed`;
@@ -481,11 +473,7 @@ function showProgressModal(title, files) {
     const item = document.createElement("div");
     item.className = "progress-file-item";
     item.id = `pf-${i}`;
-    item.innerHTML = `
-      <span class="progress-file-icon">⏳</span>
-      <span class="progress-file-name">${f}</span>
-      <span class="progress-file-status">Waiting...</span>
-    `;
+    item.innerHTML = `<span class="progress-file-icon">⏳</span><span class="progress-file-name">${f}</span><span class="progress-file-status">Waiting...</span>`;
     list.appendChild(item);
   });
   document.getElementById("progressModal").classList.add("active");
@@ -500,7 +488,6 @@ function updateProgressFile(index, state, total) {
   item.querySelector(".progress-file-icon").textContent = icons[state];
   item.querySelector(".progress-file-status").textContent = statuses[state];
   item.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  // Update progress bar
   const done = document.querySelectorAll(".progress-file-item.done").length;
   const pct = Math.round((done / total) * 100);
   document.getElementById("progressBar").style.width = `${pct}%`;
@@ -520,7 +507,6 @@ function closeProgressModal(successCount, totalCount) {
   }, 1500);
 }
 
-// ── K5: Upload Progress Modal ──
 function showUploadProgressModal(files) {
   document.getElementById("uploadProgressSubtitle").textContent = `0 / ${files.length} files uploaded`;
   document.getElementById("uploadProgressBar").style.width = "0%";
@@ -531,11 +517,7 @@ function showUploadProgressModal(files) {
     const item = document.createElement("div");
     item.className = "progress-file-item";
     item.id = `upf-${i}`;
-    item.innerHTML = `
-      <span class="progress-file-icon">⏳</span>
-      <span class="progress-file-name">${f.name} <span style="color:#aaa;font-size:11px;">(${(f.size/1024/1024).toFixed(2)} MB)</span></span>
-      <span class="progress-file-status">Waiting...</span>
-    `;
+    item.innerHTML = `<span class="progress-file-icon">⏳</span><span class="progress-file-name">${f.name} <span style="color:#aaa;font-size:11px;">(${(f.size/1024/1024).toFixed(2)} MB)</span></span><span class="progress-file-status">Waiting...</span>`;
     list.appendChild(item);
   });
   document.getElementById("uploadProgressModal").classList.add("active");
@@ -569,7 +551,6 @@ function closeUploadProgressModal(successCount, totalCount) {
   }, 1500);
 }
 
-// ── Duplicate detection ──
 let duplicateFilenames = [];
 
 function previewFiles() {
@@ -587,8 +568,7 @@ function previewFiles() {
   const totalMB = (totalSize / (1024*1024)).toFixed(2);
   if (totalSize > MAX_UPLOAD_MB * 1024 * 1024) {
     warn.textContent = `Total size ${totalMB}MB exceeds ${MAX_UPLOAD_MB}MB limit!`;
-    document.getElementById("fileInput").value = "";
-    return;
+    document.getElementById("fileInput").value = ""; return;
   }
   const existingFiles = OWN_FILES.map(f => ({ name: f.filename, size: f.filesize || 0 }));
   for (let i = 0; i < files.length; i++) {
@@ -628,7 +608,6 @@ function removeDuplicates() {
   previewFiles();
 }
 
-// ── K6: Upload with parallel processing + K5: progress ──
 async function handleEncryptedUpload() {
   const files = Array.from(document.getElementById("fileInput").files);
   const warn = document.getElementById("sizeWarning");
@@ -638,20 +617,13 @@ async function handleEncryptedUpload() {
   files.forEach(f => totalSize += f.size);
   if (totalSize > MAX_UPLOAD_MB * 1024 * 1024) { warn.textContent = `Total exceeds ${MAX_UPLOAD_MB}MB!`; return; }
   warn.textContent = "";
-
-  // Get own public key once
   const myPubKeyResp = await fetch(`/get_public_key/${CURRENT_USER}`);
-  const myPubKeyB64 = await myPubKeyResp.text();
+  const myPubKeyB64 = (await myPubKeyResp.text()).trim();
   const myPubKey = await window.crypto.subtle.importKey(
     "spki", b64ToBytes(myPubKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]
   );
-
-  // Show upload progress modal
   showUploadProgressModal(files);
-
   let successCount = 0;
-
-  // K6: Encrypt all files in parallel first
   const encryptedFiles = await runInParallel(files, async (file, i) => {
     updateUploadFile(i, "active", files.length);
     try {
@@ -667,8 +639,6 @@ async function handleEncryptedUpload() {
       return { file, index: i, success: false };
     }
   });
-
-  // K6: Upload all in parallel
   await runInParallel(encryptedFiles, async (item) => {
     if (!item.success) return;
     try {
@@ -684,11 +654,9 @@ async function handleEncryptedUpload() {
       updateUploadFile(item.index, "failed", files.length);
     }
   });
-
   closeUploadProgressModal(successCount, files.length);
 }
 
-// ── Download ──
 async function handleDecryptedDownload(filename, owner) {
   const resp = await fetch(`/download_encrypted/${encodeURIComponent(filename)}?owner=${encodeURIComponent(owner)}`);
   if (!resp.ok) { alert("Download failed or unauthorized."); return; }
@@ -710,7 +678,6 @@ async function handleDecryptedDownload(filename, owner) {
   URL.revokeObjectURL(url);
 }
 
-// ── Single Share Modal ──
 let currentShareFilename = "";
 let shareAddedUsers = [];
 
@@ -776,47 +743,47 @@ function renderShareTags() {
   });
 }
 
-// ── K5+K6: Single file share with progress ──
 async function handleShare() {
   if (shareAddedUsers.length === 0) { document.getElementById("shareUserError").textContent = "Add at least one user."; return; }
   const privKeyB64 = localStorage.getItem(`privkey_${CURRENT_USER}`);
   if (!privKeyB64) { alert("Private key not found! Please logout and login again."); return; }
-
   closeShareModal();
-
-  // Show progress for single file share
   showProgressModal(`🔒 Sharing: ${currentShareFilename}`, [currentShareFilename]);
   updateProgressFile(0, "active", 1);
-
-  const privateKey = await window.crypto.subtle.importKey(
-    "pkcs8", b64ToBytes(privKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]
-  );
-  const metaResp = await fetch(`/get_file_key/${encodeURIComponent(currentShareFilename)}`);
-  const meta = await metaResp.json();
-  const aesKeyRaw = await window.crypto.subtle.decrypt({ name: "RSA-OAEP" }, privateKey, b64ToBytes(meta.encrypted_key));
-
-  // K6: Encrypt for all recipients in parallel
-  const sharePayloads = await Promise.all(shareAddedUsers.map(async u => {
-    const pubKeyResp = await fetch(`/get_public_key/${u}`);
-    const pubKeyB64 = await pubKeyResp.text();
-    const recipientPubKey = await window.crypto.subtle.importKey(
-      "spki", b64ToBytes(pubKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]
+  try {
+    const privateKey = await window.crypto.subtle.importKey(
+      "pkcs8", b64ToBytes(privKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]
     );
-    const encryptedKeyForRecipient = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, recipientPubKey, aesKeyRaw);
-    addRecentRecipient(u);
-    return { user: u, encrypted_key: bytesToB64(encryptedKeyForRecipient) };
-  }));
-
-  await fetch(`/share/${encodeURIComponent(currentShareFilename)}`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ users: sharePayloads, iv: meta.iv })
-  });
-
-  updateProgressFile(0, "done", 1);
-  closeProgressModal(1, 1);
+    const metaResp = await fetch(`/get_file_key/${encodeURIComponent(currentShareFilename)}`);
+    const meta = await metaResp.json();
+    const aesKeyRaw = await window.crypto.subtle.decrypt({ name: "RSA-OAEP" }, privateKey, b64ToBytes(meta.encrypted_key));
+    const sharePayloads = await Promise.all(shareAddedUsers.map(async u => {
+      const pubKeyResp = await fetch(`/get_public_key/${u}`);
+      if (!pubKeyResp.ok) throw new Error(`Public key not found for: ${u}`);
+      const pubKeyB64 = (await pubKeyResp.text()).trim();
+      const recipientPubKey = await window.crypto.subtle.importKey(
+        "spki", b64ToBytes(pubKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]
+      );
+      const encryptedKeyForRecipient = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, recipientPubKey, aesKeyRaw);
+      addRecentRecipient(u);
+      return { user: u, encrypted_key: bytesToB64(encryptedKeyForRecipient) };
+    }));
+    await fetch(`/share/${encodeURIComponent(currentShareFilename)}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ users: sharePayloads, iv: meta.iv })
+    });
+    updateProgressFile(0, "done", 1);
+    closeProgressModal(1, 1);
+  } catch(e) {
+    updateProgressFile(0, "failed", 1);
+    console.error("Share error:", e);
+    setTimeout(() => {
+      document.getElementById("progressModal").classList.remove("active");
+      alert("Share failed: " + e.message);
+    }, 500);
+  }
 }
 
-// ── Bulk Share Modal ──
 let bulkAddedUsers = [];
 
 function openBulkShareModal() {
@@ -916,7 +883,7 @@ function renderBulkTags() {
   });
 }
 
-// ── K5+K6: Bulk share with progress + parallel ──
+// ── FIXED: handleBulkShare with full error handling ──
 async function handleBulkShare() {
   const errEl = document.getElementById("bulkUserError");
   const selectedFiles = [...document.querySelectorAll(".bulk-file-check:checked")].map(cb => cb.value);
@@ -924,7 +891,6 @@ async function handleBulkShare() {
   if (selectedFiles.length > MAX_BULK_FILES) { errEl.textContent = `Max ${MAX_BULK_FILES} files allowed.`; return; }
   if (bulkAddedUsers.length === 0) { errEl.textContent = "Add at least one user."; return; }
 
-  // 400MB check
   const sizeResp = await fetch("/get_files_size", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ filenames: selectedFiles })
@@ -938,61 +904,66 @@ async function handleBulkShare() {
   if (!privKeyB64) { alert("Private key not found! Please logout and login again."); return; }
 
   closeBulkShareModal();
-
-  // Show progress modal
   showProgressModal(`🔒 Bulk sharing ${selectedFiles.length} files...`, selectedFiles);
 
-  const privateKey = await window.crypto.subtle.importKey(
-    "pkcs8", b64ToBytes(privKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]
-  );
-
-  // K6: Pre-fetch all recipient public keys in parallel
-  const recipientKeys = {};
-  await Promise.all(bulkAddedUsers.map(async u => {
-    const pubKeyResp = await fetch(`/get_public_key/${u}`);
-    const pubKeyB64 = await pubKeyResp.text();
-    recipientKeys[u] = await window.crypto.subtle.importKey(
-      "spki", b64ToBytes(pubKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]
+  try {
+    const privateKey = await window.crypto.subtle.importKey(
+      "pkcs8", b64ToBytes(privKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]
     );
-    addRecentRecipient(u);
-  }));
 
-  let successCount = 0;
-
-  // K6: Process files in parallel with progress updates
-  await runInParallel(selectedFiles, async (filename, i) => {
-    updateProgressFile(i, "active", selectedFiles.length);
-    try {
-      const metaResp = await fetch(`/get_file_key/${encodeURIComponent(filename)}`);
-      const meta = await metaResp.json();
-      const aesKeyRaw = await window.crypto.subtle.decrypt(
-        { name: "RSA-OAEP" }, privateKey, b64ToBytes(meta.encrypted_key)
+    // Fetch all recipient public keys one by one with full error checking
+    const recipientKeys = {};
+    for (const u of bulkAddedUsers) {
+      const pubKeyResp = await fetch(`/get_public_key/${u}`);
+      if (!pubKeyResp.ok) throw new Error(`Could not get public key for user: ${u} (status ${pubKeyResp.status})`);
+      const pubKeyB64 = (await pubKeyResp.text()).trim();
+      if (!pubKeyB64 || pubKeyB64 === "Not found") throw new Error(`Empty public key for user: ${u}`);
+      recipientKeys[u] = await window.crypto.subtle.importKey(
+        "spki", b64ToBytes(pubKeyB64), { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]
       );
-
-      // K6: Encrypt for all recipients in parallel
-      const sharePayloads = await Promise.all(bulkAddedUsers.map(async u => {
-        const encryptedKeyForRecipient = await window.crypto.subtle.encrypt(
-          { name: "RSA-OAEP" }, recipientKeys[u], aesKeyRaw
-        );
-        return { user: u, encrypted_key: bytesToB64(encryptedKeyForRecipient) };
-      }));
-
-      await fetch(`/share/${encodeURIComponent(filename)}`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ users: sharePayloads, iv: meta.iv })
-      });
-
-      updateProgressFile(i, "done", selectedFiles.length);
-      successCount++;
-    } catch(e) {
-      updateProgressFile(i, "failed", selectedFiles.length);
+      addRecentRecipient(u);
     }
-  });
 
-  closeProgressModal(successCount, selectedFiles.length);
+    let successCount = 0;
+
+    await runInParallel(selectedFiles, async (filename, i) => {
+      updateProgressFile(i, "active", selectedFiles.length);
+      try {
+        const metaResp = await fetch(`/get_file_key/${encodeURIComponent(filename)}`);
+        if (!metaResp.ok) throw new Error(`Could not get file key for: ${filename}`);
+        const meta = await metaResp.json();
+        if (!meta.encrypted_key) throw new Error(`No encrypted key for: ${filename}`);
+        const aesKeyRaw = await window.crypto.subtle.decrypt(
+          { name: "RSA-OAEP" }, privateKey, b64ToBytes(meta.encrypted_key)
+        );
+        const sharePayloads = await Promise.all(bulkAddedUsers.map(async u => {
+          const encryptedKeyForRecipient = await window.crypto.subtle.encrypt(
+            { name: "RSA-OAEP" }, recipientKeys[u], aesKeyRaw
+          );
+          return { user: u, encrypted_key: bytesToB64(encryptedKeyForRecipient) };
+        }));
+        const shareResp = await fetch(`/share/${encodeURIComponent(filename)}`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ users: sharePayloads, iv: meta.iv })
+        });
+        if (!shareResp.ok) throw new Error(`Share request failed for: ${filename}`);
+        updateProgressFile(i, "done", selectedFiles.length);
+        successCount++;
+      } catch(e) {
+        console.error(`Failed for ${filename}:`, e);
+        updateProgressFile(i, "failed", selectedFiles.length);
+      }
+    });
+
+    closeProgressModal(successCount, selectedFiles.length);
+
+  } catch(e) {
+    console.error("Bulk share error:", e);
+    document.getElementById("progressModal").classList.remove("active");
+    alert("Bulk share failed: " + e.message);
+  }
 }
 
-// ── Bulk Delete ──
 function openBulkDeleteModal() {
   const selector = document.getElementById("bulkDeleteFileSelector"); selector.innerHTML = "";
   document.getElementById("selectAllDeleteFiles").checked = false;
@@ -1029,8 +1000,6 @@ async function confirmBulkDelete() {
   const selected = [...document.querySelectorAll(".bulk-delete-check:checked")].map(cb => cb.value);
   if (selected.length === 0) { alert("Please select at least one file."); return; }
   closeBulkDeleteModal();
-
-  // K7: Find all rows first
   const rowMap = {};
   const rows = document.querySelectorAll(".file");
   selected.forEach(filename => {
@@ -1044,14 +1013,10 @@ async function confirmBulkDelete() {
       }
     });
   });
-
-  // K7: Delete ALL files in parallel on server simultaneously
   const deletePromises = selected.map(filename =>
     fetch(`/delete/${encodeURIComponent(filename)}`, { method: "POST" })
   );
   await Promise.all(deletePromises);
-
-  // K7: Fade out rows one by one visually after all deleted
   for (const filename of selected) {
     const row = rowMap[filename];
     if (row) {
@@ -1060,11 +1025,9 @@ async function confirmBulkDelete() {
       row.remove();
     }
   }
-
   setTimeout(() => window.location.href = "/dashboard", 400);
 }
 
-// ── Single Delete ──
 let pendingDeleteFile = "";
 
 function openDeleteConfirm(filename) {
@@ -1100,7 +1063,6 @@ async function confirmDelete() {
   pendingDeleteFile = "";
 }
 
-// ── Close modals on backdrop click ──
 document.getElementById("shareModal").addEventListener("click", e => { if(e.target===e.currentTarget) closeShareModal(); });
 document.getElementById("bulkShareModal").addEventListener("click", e => { if(e.target===e.currentTarget) closeBulkShareModal(); });
 document.getElementById("bulkDeleteModal").addEventListener("click", e => { if(e.target===e.currentTarget) closeBulkDeleteModal(); });
